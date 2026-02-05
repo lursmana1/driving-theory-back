@@ -23,7 +23,6 @@ export class UsersController {
   }
 
   @Get()
-  @UseGuards(JwtAuthGuard)
   async findAll() {
     const users = await this.usersService.findAll();
     return users;
