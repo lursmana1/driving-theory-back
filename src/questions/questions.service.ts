@@ -9,13 +9,15 @@ export class QuestionsService {
     @InjectModel(Question.name) private questionModel: Model<QuestionDocument>,
   ) {}
 
-  async findAll(options: {
-    categories?: number[];
-    subjects?: number[];
-    random?: number;
-    limit?: number;
-  } = {}): Promise<Question[]> {
-    const { categories, subjects, random, limit = 150 } = options;
+  async findAll(
+    options: {
+      categories?: number[];
+      subjects?: number[];
+      random?: number;
+      limit?: number;
+    } = {},
+  ): Promise<Question[]> {
+    const { categories, subjects, random, limit = 30 } = options;
 
     // Build match filter dynamically
     const match: Record<string, any> = {};

@@ -1,4 +1,13 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  Query,
+} from '@nestjs/common';
 import { ExamsService } from './exams.service';
 import { CreateExamDto } from './dto/create-exam.dto';
 import { UpdateExamDto } from './dto/update-exam.dto';
@@ -17,18 +26,42 @@ export class ExamsController {
     return this.examsService.findAll();
   }
 
+  @Get('generate')
+  generate(
+    @Query('title') title?: string,
+    @Query('subjects') subjects?: string,
+    @Query('categories') categories?: string,
+    @Query('count') count?: string,
+    @Query('allSubjects') allSubjects?: string,
+  ) {
+    const parsedCategories = categories
+      ? categories.split(',').map(Number)
+      : undefined;
+
+    const parsedSubjects = subjects
+      ? subjects.split(',').map(Number)
+      : undefined;
+
+    return this.examsService.generateExam({
+      title,
+      subjects: parsedSubjects,
+      categories: parsedCategories,
+      count: count ? parseInt(count, 10) : undefined,
+    });
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
-    return this.examsService.findOne(+id);
+    return this.examsService.findOne(id);
   }
 
   @Patch(':id')
   update(@Param('id') id: string, @Body() updateExamDto: UpdateExamDto) {
-    return this.examsService.update(+id, updateExamDto);
+    return this.examsService.update(id, updateExamDto);
   }
 
   @Delete(':id')
   remove(@Param('id') id: string) {
-    return this.examsService.remove(+id);
+    return this.examsService.remove(id);
   }
 }
