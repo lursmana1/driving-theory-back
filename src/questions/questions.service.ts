@@ -9,54 +9,68 @@ export class QuestionsService {
     @InjectModel(Question.name) private questionModel: Model<QuestionDocument>,
   ) {}
 
-  async findAll(
-    options: {
-      categories?: number[];
-      subjects?: number[];
-      random?: number;
-      limit?: number;
-    } = {},
-  ): Promise<Question[]> {
-    const { categories, subjects, random, limit = 30 } = options;
-
-    // Build match filter dynamically
+  private buildMatch(category?: number, subjects?: number[]) {
     const match: Record<string, any> = {};
 
-    if (categories?.length) {
-      match.categories = { $in: categories };
+    if (Number.isFinite(category)) {
+      match.categories = category;
     }
 
     if (subjects?.length) {
       match.subject = { $in: subjects };
     }
 
-    // Build aggregation pipeline
+    return match;
+  }
+
+  async findPaged(opts: {
+    category?: number;
+    subjects?: number[];
+    page: number;
+    size: 10 | 20 | 40;
+  }) {
+    const { category, subjects, page, size } = opts;
+    const match = this.buildMatch(category, subjects);
+    const skip = (page - 1) * size;
+
     const pipeline: any[] = [];
+    if (Object.keys(match).length) pipeline.push({ $match: match });
 
-    // Add $match stage if 2any filters exist
-    if (Object.keys(match).length > 0) {
-      pipeline.push({ $match: match });
-    }
+    pipeline.push({
+      $facet: {
+        items: [{ $sort: { id: 1 } }, { $skip: skip }, { $limit: size }],
+        meta: [{ $count: 'total' }],
+      },
+    });
 
-    // Add $sample for random selection, otherwise $limit
-    if (random) {
-      pipeline.push({ $sample: { size: random } });
-    } else {
-      pipeline.push({ $limit: limit });
-    }
+    const [res] = await this.questionModel.aggregate(pipeline).exec();
+    const total = res?.meta?.[0]?.total ?? 0;
+
+    return {
+      items: res?.items ?? [],
+      page,
+      size,
+      total,
+      totalPages: Math.ceil(total / size),
+    };
+  }
+
+  async findRandom(opts: {
+    count: number;
+    category?: number;
+    subjects?: number[];
+  }) {
+    const { count, category, subjects } = opts;
+    const match = this.buildMatch(category, subjects);
+
+    const pipeline: any[] = [];
+    if (Object.keys(match).length) pipeline.push({ $match: match });
+    pipeline.push({ $sample: { size: count } });
 
     return this.questionModel.aggregate(pipeline).exec();
   }
 
-  async findOne(id: string): Promise<Question | null> {
-    return this.questionModel.findById(id).exec();
-  }
-
-  async findBySubject(subject: number): Promise<Question[]> {
-    return this.questionModel.find({ subject }).exec();
-  }
-
-  async findRandom(count: number = 10): Promise<Question[]> {
-    return this.questionModel.aggregate([{ $sample: { size: count } }]).exec();
+  async findOne(id: string) {
+    return this.questionModel.findById(id).lean().exec();
   }
 }
