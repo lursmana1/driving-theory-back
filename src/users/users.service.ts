@@ -18,18 +18,12 @@ export class UsersService {
   }
 
   async findAll(): Promise<any[]> {
-    return (
-      await this.usersRepository.find({ relations: { products: true } })
-    ).map((user) => ({
-      ...user,
-      products: user.products,
-      isFirstUser: user.id === 1,
-    }));
+    return await this.usersRepository.find();
   }
 
   async findOne(id: number): Promise<User> {
     const user = await this.usersRepository.findOne({
-      where: { id ,  },
+      where: { id },
     });
     if (!user) {
       throw new NotFoundException(`User with ID ${id} not found`);

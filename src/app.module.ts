@@ -4,8 +4,6 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { MongooseModule } from '@nestjs/mongoose';
 import { UsersModule } from './users/users.module';
 import { User } from './users/entities/user.entity';
-import { ProductsModule } from './products/products.module';
-import { Product } from './products/entities/product.entity';
 import { AuthModule } from './auth/auth.module';
 import { ExamsModule } from './exams/exams.module';
 import { QuestionsModule } from './questions/questions.module';
@@ -25,7 +23,7 @@ import { CategoriesModule } from './categories/categories.module';
         username: configService.get<string>('DB_USERNAME'),
         password: configService.get<string>('DB_PASSWORD'),
         database: configService.get<string>('DB_DATABASE'),
-        entities: [User, Product],
+        entities: [User],
         synchronize: configService.get('DB_SYNCHRONIZE') === 'true',
       }),
       inject: [ConfigService],
@@ -38,7 +36,6 @@ import { CategoriesModule } from './categories/categories.module';
       inject: [ConfigService],
     }),
     UsersModule,
-    ProductsModule,
     AuthModule,
     ExamsModule,
     QuestionsModule,
