@@ -32,7 +32,16 @@ export class CategoriesService {
       .exec();
   }
   async findOne(id: number) {
-    return this.categoryModel.findOne({ id }, { _id: 0 }).lean().exec();
+    const category = await this.categoryModel
+      .findOne({ id }, { _id: 0 })
+      .lean()
+      .exec();
+
+    if (category?.subjects?.length) {
+      category.subjects.sort((a, b) => a.id - b.id);
+    }
+
+    return category;
   }
   update(id: number, updateCategoryDto: UpdateCategoryDto) {
     return `This action updates a #${id} category`;
