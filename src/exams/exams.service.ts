@@ -10,6 +10,7 @@ import {
 } from '../questions/schemas/question.schema';
 
 interface GenerateExamOptions {
+  lang: string;
   title?: string;
   subjects?: number[];
   categories?: number[];
@@ -43,6 +44,7 @@ export class ExamsService {
   // Generate exam by random/subject/category, no direct questionIds needed
   async generateExam(options: GenerateExamOptions) {
     const {
+      lang,
       title,
       subjects,
       categories,
@@ -50,7 +52,7 @@ export class ExamsService {
       allSubjects,
     } = options;
 
-    const match: Record<string, any> = {};
+    const match: Record<string, any> = { lang };
 
     if (categories?.length) {
       match.categories = { $in: categories };
@@ -60,11 +62,7 @@ export class ExamsService {
       match.subject = { $in: subjects };
     }
 
-    const pipeline: any[] = [];
-
-    if (Object.keys(match).length > 0) {
-      pipeline.push({ $match: match });
-    }
+    const pipeline: any[] = [{ $match: match }];
 
     pipeline.push({ $sample: { size: count } });
 

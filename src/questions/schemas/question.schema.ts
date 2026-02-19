@@ -40,6 +40,11 @@ export class Question {
 
   @Prop()
   audio: string;
+
+  @Prop({ default: 'ka' })
+  lang: string;
 }
 
 export const QuestionSchema = SchemaFactory.createForClass(Question);
+
+QuestionSchema.index({ lang: 1, categories: 1, subject: 1 });

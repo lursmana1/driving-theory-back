@@ -9,8 +9,8 @@ export class QuestionsService {
     @InjectModel(Question.name) private questionModel: Model<QuestionDocument>,
   ) {}
 
-  private buildMatch(category?: number, subjects?: number[]) {
-    const match: Record<string, any> = {};
+  private buildMatch(lang: string, category?: number, subjects?: number[]) {
+    const match: Record<string, any> = { lang };
 
     if (Number.isFinite(category)) {
       match.categories = category;
@@ -24,21 +24,26 @@ export class QuestionsService {
   }
 
   async findPaged(opts: {
+    lang: string;
     category?: number;
     subjects?: number[];
     page: number;
     size: 10 | 20 | 40;
   }) {
-    const { category, subjects, page, size } = opts;
-    const match = this.buildMatch(category, subjects);
+    const { lang, category, subjects, page, size } = opts;
+    const match = this.buildMatch(lang, category, subjects);
     const skip = (page - 1) * size;
 
-    const pipeline: any[] = [];
-    if (Object.keys(match).length) pipeline.push({ $match: match });
+    const pipeline: any[] = [{ $match: match }];
 
     pipeline.push({
       $facet: {
-        items: [{ $sort: { id: 1 } }, { $skip: skip }, { $limit: size }],
+        items: [
+          { $sort: { id: 1 } },
+          { $skip: skip },
+          { $limit: size },
+          { $project: { lang: 0 } },
+        ],
         meta: [{ $count: 'total' }],
       },
     });
@@ -56,16 +61,17 @@ export class QuestionsService {
   }
 
   async findRandom(opts: {
+    lang: string;
     count: number;
     category?: number;
     subjects?: number[];
   }) {
-    const { count, category, subjects } = opts;
-    const match = this.buildMatch(category, subjects);
+    const { lang, count, category, subjects } = opts;
+    const match = this.buildMatch(lang, category, subjects);
 
-    const pipeline: any[] = [];
-    if (Object.keys(match).length) pipeline.push({ $match: match });
+    const pipeline: any[] = [{ $match: match }];
     pipeline.push({ $sample: { size: count } });
+    pipeline.push({ $project: { categories: 0, lang: 0 } });
 
     return this.questionModel.aggregate(pipeline).exec();
   }

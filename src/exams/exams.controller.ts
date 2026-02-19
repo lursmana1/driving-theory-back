@@ -6,11 +6,21 @@ import {
   Patch,
   Param,
   Delete,
+  Headers,
   Query,
 } from '@nestjs/common';
 import { ExamsService } from './exams.service';
 import { CreateExamDto } from './dto/create-exam.dto';
 import { UpdateExamDto } from './dto/update-exam.dto';
+
+const VALID_LANGS = new Set(['ka', 'en', 'ru']);
+function parseLang(queryLang?: string, headerLang?: string): string {
+  if (queryLang && VALID_LANGS.has(queryLang.toLowerCase())) {
+    return queryLang.toLowerCase();
+  }
+  const fromHeader = headerLang?.trim().slice(0, 2).toLowerCase();
+  return fromHeader && VALID_LANGS.has(fromHeader) ? fromHeader : 'ka';
+}
 
 @Controller('exams')
 export class ExamsController {
@@ -28,6 +38,8 @@ export class ExamsController {
 
   @Get('generate')
   generate(
+    @Query('lang') langQuery?: string,
+    @Headers('accept-language') langHeader?: string,
     @Query('title') title?: string,
     @Query('subjects') subjects?: string,
     @Query('categories') categories?: string,
@@ -43,6 +55,7 @@ export class ExamsController {
       : undefined;
 
     return this.examsService.generateExam({
+      lang: parseLang(langQuery, langHeader),
       title,
       subjects: parsedSubjects,
       categories: parsedCategories,
