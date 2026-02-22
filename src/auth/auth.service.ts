@@ -40,10 +40,37 @@ export class AuthService {
     return this.generateToken(user);
   }
 
+  async validateOrCreateGoogleUser(
+    googleId: string,
+    email: string | undefined,
+    name: string,
+  ) {
+    if (!email) {
+      throw new UnauthorizedException('Google account has no email');
+    }
+    let user = await this.usersRepository.findOne({
+      where: [{ googleId }, { email }],
+    });
+
+    if (!user) {
+      user = this.usersRepository.create({
+        googleId,
+        email,
+        name,
+      });
+      await this.usersRepository.save(user);
+    } else if (!user.googleId) {
+      user.googleId = googleId;
+      await this.usersRepository.save(user);
+    }
+
+    return this.generateToken(user);
+  }
+
   async login(email: string, password: string) {
     // Find user
     const user = await this.usersRepository.findOneBy({ email });
-    if (!user) {
+    if (!user || !user.password) {
       throw new UnauthorizedException('Invalid credentials');
     }
 
