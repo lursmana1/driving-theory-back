@@ -77,6 +77,10 @@ export class QuestionsService {
   }
 
   async findOne(id: string) {
-    return this.questionModel.findById(id).lean().exec();
+    const numId = Number(id);
+    if (!Number.isFinite(numId)) {
+      return null;
+    }
+    return this.questionModel.findOne({ id: numId }).lean().exec();
   }
 }
