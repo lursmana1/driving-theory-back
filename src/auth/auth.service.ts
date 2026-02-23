@@ -32,6 +32,7 @@ export class AuthService {
       name,
       email,
       password: hashedPassword,
+      type: 'user',
     });
 
     await this.usersRepository.save(user);
@@ -57,6 +58,7 @@ export class AuthService {
         googleId,
         email,
         name,
+        type: 'user',
       });
       await this.usersRepository.save(user);
     } else if (!user.googleId) {
@@ -85,7 +87,11 @@ export class AuthService {
   }
 
   private generateToken(user: User) {
-    const payload = { sub: user.id, email: user.email };
+    const payload = {
+      sub: user.id,
+      email: user.email,
+      type: user.type ?? 'user',
+    };
     return {
       access_token: this.jwtService.sign(payload),
       user: {

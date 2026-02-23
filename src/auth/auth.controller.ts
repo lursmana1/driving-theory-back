@@ -1,4 +1,12 @@
-import { Controller, Post, Body, Res, Get, Req, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  Res,
+  Get,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
@@ -18,7 +26,8 @@ export class AuthController {
   @Get('google/callback')
   @UseGuards(AuthGuard('google'))
   async googleAuthCallback(
-    @Req() req: Request & { user: { googleId: string; email: string; name: string } },
+    @Req()
+    req: Request & { user: { googleId: string; email: string; name: string } },
     @Res() res: Response,
   ) {
     const result = await this.authService.validateOrCreateGoogleUser(

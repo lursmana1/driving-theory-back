@@ -7,16 +7,12 @@ function cookieExtractor(req: any): string | null {
   // No cookie-parser dependency: parse raw Cookie header.
   const cookieHeader: string | undefined = req?.headers?.cookie;
   if (!cookieHeader) return null;
-  console.log(cookieHeader, 'cookieHeader');
 
   const parts = cookieHeader.split(';').map((p) => p.trim());
-  console.log(parts, 'parts');
   const tokenPart = parts.find((p) => p.startsWith('access_token='));
   if (!tokenPart) return null;
 
   const token = tokenPart.substring('access_token='.length);
-  console.log(token, 'token');
-
   return token || null;
 }
 
@@ -38,8 +34,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  async validate(payload: { sub: number; email: string }) {
+  async validate(payload: { sub: number; email: string; type?: 'admin' | 'user' }) {
     // This becomes req.user
-    return { userId: payload.sub, email: payload.email };
+    return {
+      userId: payload.sub,
+      email: payload.email,
+      type: payload.type ?? 'user',
+    };
   }
 }

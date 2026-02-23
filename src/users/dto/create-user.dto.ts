@@ -16,9 +16,4 @@ export class CreateUserDto {
   @IsEmail()
   @IsNotEmpty()
   email: string;
-
-  @Transform(({ value }) => parseInt(value)) 
-  @IsNumber()
-  @IsOptional()
-  age?: number;
 }

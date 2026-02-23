@@ -11,11 +11,11 @@ export class User {
   email: string;
 
   @Column({ nullable: true })
-  age: number;
-
-  @Column({ nullable: true })
   password: string;
 
   @Column({ nullable: true, unique: true })
   googleId: string;
+
+  @Column({ type: 'varchar', default: 'user' })
+  type: 'admin' | 'user';
 }
