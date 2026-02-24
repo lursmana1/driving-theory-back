@@ -2,6 +2,7 @@ import {
   Injectable,
   UnauthorizedException,
   ConflictException,
+  NotFoundException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -17,23 +18,28 @@ export class AuthService {
     private jwtService: JwtService,
   ) {}
 
-  async register(name: string, email: string, password: string) {
-    // Check if user already exists
+  async register(data: {
+    name: string;
+    email: string;
+    password: string;
+    surname?: string;
+  }) {
+    const { name, email, password, surname } = data;
+
     const existingUser = await this.usersRepository.findOneBy({ email });
     if (existingUser) {
       throw new ConflictException('Email already exists');
     }
 
-    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create user
     const user = this.usersRepository.create({
       name,
       email,
       password: hashedPassword,
       type: 'user',
     });
+    if (surname) user.surname = surname;
 
     await this.usersRepository.save(user);
 
@@ -67,6 +73,15 @@ export class AuthService {
     }
 
     return this.generateToken(user);
+  }
+
+  async getMe(userId: number) {
+    const user = await this.usersRepository.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    const { password, ...safeUser } = user;
+    return safeUser;
   }
 
   async login(email: string, password: string) {

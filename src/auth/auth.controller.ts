@@ -12,6 +12,7 @@ import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { AuthGuard } from '@nestjs/passport';
+import { JwtAuthGuard } from './jwt-auth.guard';
 
 @Controller('auth')
 export class AuthController {
@@ -53,11 +54,12 @@ export class AuthController {
     @Body() dto: RegisterDto,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const result = await this.authService.register(
-      dto.name,
-      dto.email,
-      dto.password,
-    );
+    const result = await this.authService.register({
+      name: dto.name,
+      email: dto.email,
+      password: dto.password,
+      surname: dto.surname,
+    });
 
     res.cookie('access_token', result.access_token, {
       httpOnly: true,
@@ -86,6 +88,12 @@ export class AuthController {
     });
 
     return { user: result.user };
+  }
+
+  @Get('me')
+  @UseGuards(JwtAuthGuard)
+  me(@Req() req: Request & { user: { userId: number; email: string; type: string } }) {
+    return this.authService.getMe(req.user.userId);
   }
 
   @Post('logout')
