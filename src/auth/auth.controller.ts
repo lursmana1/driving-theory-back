@@ -37,10 +37,11 @@ export class AuthController {
       req.user.name,
     );
 
+    const isProduction = process.env.NODE_ENV === 'production';
     res.cookie('access_token', result.access_token, {
       httpOnly: true,
-      sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
+      sameSite: isProduction ? 'none' : 'lax',
+      secure: isProduction,
       path: '/',
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
@@ -61,10 +62,11 @@ export class AuthController {
       surname: dto.surname,
     });
 
+    const isProduction = process.env.NODE_ENV === 'production';
     res.cookie('access_token', result.access_token, {
       httpOnly: true,
-      sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
+      sameSite: isProduction ? 'none' : 'lax',
+      secure: isProduction,
       path: '/',
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
@@ -79,10 +81,11 @@ export class AuthController {
   ) {
     const result = await this.authService.login(dto.email, dto.password);
 
+    const isProduction = process.env.NODE_ENV === 'production';
     res.cookie('access_token', result.access_token, {
       httpOnly: true,
-      sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
+      sameSite: isProduction ? 'none' : 'lax',
+      secure: isProduction,
       path: '/',
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
