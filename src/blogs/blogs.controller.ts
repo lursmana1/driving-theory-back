@@ -6,6 +6,9 @@ import {
   Delete,
   Body,
   Param,
+  ParseIntPipe,
+  Query,
+  Req,
   UseInterceptors,
   UploadedFile,
   BadRequestException,
@@ -28,44 +31,51 @@ export class BlogsController {
   @UseGuards(JwtAuthGuard, AdminGuard)
   @UseInterceptors(FileInterceptor('file', FILE_INTERCEPTOR_OPTIONS))
   create(
+    @Req() req: { user: { userId: number } },
     @UploadedFile() file: Express.Multer.File,
     @Body('name') name: string,
-    @Body('bigText') bigText: string,
+    @Body('description') description: string,
+    @Body('content') content: string,
   ) {
     validateImageFile(file, true);
     if (!name?.trim()) throw new BadRequestException('Name is required');
-    if (!bigText?.trim()) throw new BadRequestException('bigText is required');
+    if (!description?.trim()) throw new BadRequestException('Description is required');
+    if (!content?.trim()) throw new BadRequestException('Content is required');
 
     return this.blogsService.create({
+      creatorId: req.user.userId,
       name: name.trim(),
-      bigText: bigText.trim(),
+      description: description.trim(),
+      content,
       file,
     });
   }
 
   @Get()
-  findAll() {
-    return this.blogsService.findAll();
+  findAll(@Query('page', new ParseIntPipe({ optional: true })) page?: number) {
+    return this.blogsService.findAll(page ?? 1);
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.blogsService.findOne(+id);
+  findOne(@Param('id', ParseIntPipe) id: number) {
+    return this.blogsService.findOne(id);
   }
 
   @Patch(':id')
   @UseGuards(JwtAuthGuard, AdminGuard)
   @UseInterceptors(FileInterceptor('file', FILE_INTERCEPTOR_OPTIONS))
   update(
-    @Param('id') id: string,
+    @Param('id', ParseIntPipe) id: number,
     @UploadedFile() file: Express.Multer.File | undefined,
     @Body('name') name?: string,
-    @Body('bigText') bigText?: string,
+    @Body('description') description?: string,
+    @Body('content') content?: string,
   ) {
     validateImageFile(file, false);
-    return this.blogsService.update(+id, {
+    return this.blogsService.update(id, {
       name: name?.trim(),
-      bigText: bigText?.trim(),
+      description: description?.trim(),
+      content: content,
       file,
     });
   }
@@ -73,7 +83,7 @@ export class BlogsController {
   @Delete(':id')
   @UseGuards(JwtAuthGuard, AdminGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
-  remove(@Param('id') id: string) {
-    return this.blogsService.remove(+id);
+  remove(@Param('id', ParseIntPipe) id: number) {
+    return this.blogsService.remove(id);
   }
 }
