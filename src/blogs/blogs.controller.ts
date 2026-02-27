@@ -20,8 +20,8 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { BlogsService } from './blogs.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AdminGuard } from '../auth/admin.guard';
-import { FILE_INTERCEPTOR_OPTIONS } from '../common/constants/upload.constants';
-import { validateImageFile } from '../common/utils/file-validation.util';
+import { FILE_INTERCEPTOR_OPTIONS } from '../common/constants/upload.constants.js';
+import { validateImageFile } from '../common/utils/file-validation.util.js';
 
 @Controller('blogs')
 export class BlogsController {

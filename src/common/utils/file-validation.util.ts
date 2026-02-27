@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { ALLOWED_IMAGE_MIMETYPES } from '../constants/upload.constants';
+import { ALLOWED_IMAGE_MIMETYPES } from '../constants/upload.constants.js';
 
 const ERROR_MESSAGE = 'Unsupported file type. Use JPEG, PNG, WebP, or GIF.';
 

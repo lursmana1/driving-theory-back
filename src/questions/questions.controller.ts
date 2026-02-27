@@ -1,14 +1,7 @@
 import { Controller, Get, Headers, Param, Query } from '@nestjs/common';
 import { QuestionsService } from './questions.service';
-
-const VALID_LANGS = new Set(['ka', 'en', 'ru']);
-function parseLang(queryLang?: string, headerLang?: string): string {
-  if (queryLang && VALID_LANGS.has(queryLang.toLowerCase())) {
-    return queryLang.toLowerCase();
-  }
-  const fromHeader = headerLang?.trim().slice(0, 2).toLowerCase();
-  return fromHeader && VALID_LANGS.has(fromHeader) ? fromHeader : 'ka';
-}
+import { parseLang } from '../common/utils/parse-lang.util.js';
+import { parseIdList } from '../common/utils/parse-ids.util.js';
 
 @Controller('questions')
 export class QuestionsController {
@@ -23,11 +16,10 @@ export class QuestionsController {
     @Query('page') page?: string,
     @Query('size') size?: string,
   ) {
-    const splittedSubject = subjects?.split(',').map(Number).filter(Number.isFinite);
     return this.questionsService.findPaged({
       lang: parseLang(langQuery, langHeader),
       category: category ? Number(category) : undefined,
-      subjects: subjects ? splittedSubject : undefined,
+      subjects: parseIdList(subjects),
       page: Math.max(Number(page ?? 1), 1),
       size: clampSize(size),
     });
@@ -45,9 +37,7 @@ export class QuestionsController {
       lang: parseLang(langQuery, langHeader),
       count: Math.min(Math.max(Number(count ?? 10), 1), 200),
       category: category ? Number(category) : undefined,
-      subjects: subjects
-        ? subjects.split(',').map(Number).filter(Number.isFinite)
-        : undefined,
+      subjects: parseIdList(subjects),
     });
   }
 

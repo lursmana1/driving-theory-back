@@ -12,15 +12,8 @@ import {
 import { ExamsService } from './exams.service';
 import { CreateExamDto } from './dto/create-exam.dto';
 import { UpdateExamDto } from './dto/update-exam.dto';
-
-const VALID_LANGS = new Set(['ka', 'en', 'ru']);
-function parseLang(queryLang?: string, headerLang?: string): string {
-  if (queryLang && VALID_LANGS.has(queryLang.toLowerCase())) {
-    return queryLang.toLowerCase();
-  }
-  const fromHeader = headerLang?.trim().slice(0, 2).toLowerCase();
-  return fromHeader && VALID_LANGS.has(fromHeader) ? fromHeader : 'ka';
-}
+import { parseLang } from '../common/utils/parse-lang.util.js';
+import { parseIdList, parseCount } from '../common/utils/parse-ids.util.js';
 
 @Controller('exams')
 export class ExamsController {
@@ -46,20 +39,12 @@ export class ExamsController {
     @Query('count') count?: string,
     @Query('allSubjects') allSubjects?: string,
   ) {
-    const parsedCategories = categories
-      ? categories.split(',').map(Number)
-      : undefined;
-
-    const parsedSubjects = subjects
-      ? subjects.split(',').map(Number)
-      : undefined;
-
     return this.examsService.generateExam({
       lang: parseLang(langQuery, langHeader),
       title,
-      subjects: parsedSubjects,
-      categories: parsedCategories,
-      count: count ? parseInt(count, 10) : undefined,
+      subjects: parseIdList(subjects),
+      categories: parseIdList(categories),
+      count: parseCount(count),
     });
   }
 

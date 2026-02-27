@@ -7,10 +7,13 @@ import { BlogsModule } from './blogs/blogs.module';
 import { Blog } from './blogs/entities/blog.entity';
 import { CategoriesModule } from './categories/categories.module';
 import { ExamsModule } from './exams/exams.module';
+import { ExamAttemptsModule } from './exam-attempts/exam-attempts.module';
 import { QuestionsModule } from './questions/questions.module';
 import { UploadsModule } from './uploads/uploads.module';
 import { UsersModule } from './users/users.module';
 import { User } from './users/entities/user.entity';
+import { ExamAttempt } from './exam-attempts/entities/exam-attempt.entity';
+import { UserAnswer } from './exam-attempts/entities/user-answer.entity';
 
 @Module({
   imports: [
@@ -24,7 +27,7 @@ import { User } from './users/entities/user.entity';
         username: config.get<string>('DB_USERNAME'),
         password: config.get<string>('DB_PASSWORD'),
         database: config.get<string>('DB_DATABASE'),
-        entities: [User, Blog],
+        entities: [User, Blog, ExamAttempt, UserAnswer],
         synchronize: config.get('DB_SYNCHRONIZE') === 'true',
       }),
       inject: [ConfigService],
@@ -40,6 +43,7 @@ import { User } from './users/entities/user.entity';
     BlogsModule,
     CategoriesModule,
     ExamsModule,
+    ExamAttemptsModule,
     QuestionsModule,
     UploadsModule,
     UsersModule,
