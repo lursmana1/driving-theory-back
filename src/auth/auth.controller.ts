@@ -15,11 +15,10 @@ import { AuthGuard } from '@nestjs/passport';
 import { JwtAuthGuard } from './jwt-auth.guard';
 
 function getCookieOptions() {
-  const isProd = process.env.NODE_ENV === 'production';
   return {
     httpOnly: true,
-    sameSite: (isProd ? 'none' : 'lax') as 'none' | 'lax',
-    secure: isProd,
+    sameSite: 'lax' as const,
+    secure: process.env.NODE_ENV === 'production',
     path: '/',
     maxAge: 7 * 24 * 60 * 60 * 1000,
   };
