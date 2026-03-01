@@ -80,8 +80,13 @@ export class AuthService {
     if (!user) {
       throw new NotFoundException('User not found');
     }
-    const { password, ...safeUser } = user;
-    return safeUser;
+    return {
+      id: user.id,
+      name: user.name,
+      surname: user.surname,
+      email: user.email,
+      type: user.type,
+    };
   }
 
   async login(email: string, password: string) {

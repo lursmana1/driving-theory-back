@@ -6,14 +6,19 @@ import { Model } from 'mongoose';
 import { ExamAttempt } from './entities/exam-attempt.entity';
 import { UserAnswer } from './entities/user-answer.entity';
 import { Question, QuestionDocument } from '../questions/schemas/question.schema';
-import { QuestionSelectionService, SelectionOptions } from './question-selection.service';
+import { QuestionSelectionService } from './question-selection.service';
 import { DEFAULT_LANG } from '../common/constants/lang.constants.js';
 import {
   MAX_STATS_LIMIT,
   MAX_HISTORY_PAGE_SIZE,
   DEFAULT_HISTORY_PAGE_SIZE,
 } from '../common/constants/exam.constants.js';
-import type { StartAttemptOptions, AttemptSummary, PaginatedAttempts, RawAnswerRow } from './types/exam-attempts.types.js';
+import type {
+  StartAttemptOptions,
+  AttemptSummary,
+  PaginatedAttempts,
+  RawAnswerRow,
+} from './types/exam-attempts.types.js';
 
 @Injectable()
 export class ExamAttemptsService {
