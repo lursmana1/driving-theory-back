@@ -14,6 +14,17 @@ import { LoginDto } from './dto/login.dto';
 import { AuthGuard } from '@nestjs/passport';
 import { JwtAuthGuard } from './jwt-auth.guard';
 
+function getCookieOptions() {
+  const isProd = process.env.NODE_ENV === 'production';
+  return {
+    httpOnly: true,
+    sameSite: (isProd ? 'none' : 'lax') as 'none' | 'lax',
+    secure: isProd,
+    path: '/',
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+  };
+}
+
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
@@ -37,13 +48,7 @@ export class AuthController {
       req.user.name,
     );
 
-    res.cookie('access_token', result.access_token, {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
-      path: '/',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
+    res.cookie('access_token', result.access_token, getCookieOptions());
 
     const redirectUrl = process.env.GOOGLE_REDIRECT_AFTER_LOGIN || '/';
     res.redirect(redirectUrl);
@@ -61,13 +66,7 @@ export class AuthController {
       surname: dto.surname,
     });
 
-    res.cookie('access_token', result.access_token, {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
-      path: '/',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
+    res.cookie('access_token', result.access_token, getCookieOptions());
 
     return { user: result.user };
   }
@@ -79,13 +78,7 @@ export class AuthController {
   ) {
     const result = await this.authService.login(dto.email, dto.password);
 
-    res.cookie('access_token', result.access_token, {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
-      path: '/',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
+    res.cookie('access_token', result.access_token, getCookieOptions());
 
     return { user: result.user };
   }
