@@ -6,7 +6,9 @@ import { UserAnswer } from './entities/user-answer.entity';
 import { Question, QuestionSchema } from '../questions/schemas/question.schema';
 import { ExamAttemptsController } from './exam-attempts.controller';
 import { ExamAttemptsService } from './exam-attempts.service';
-import { QuestionSelectionService } from './question-selection.service';
+import { QuestionSelectionService } from './question-selection/question-selection.service';
+import { WeaknessService } from './question-selection/weakness.service';
+import { QuestionSamplingService } from './question-selection/question-sampling.service';
 import { AuthModule } from '../auth/auth.module';
 
 @Module({
@@ -16,7 +18,7 @@ import { AuthModule } from '../auth/auth.module';
     AuthModule,
   ],
   controllers: [ExamAttemptsController],
-  providers: [ExamAttemptsService, QuestionSelectionService],
+  providers: [ExamAttemptsService, QuestionSelectionService, WeaknessService, QuestionSamplingService],
   exports: [ExamAttemptsService, QuestionSelectionService],
 })
 export class ExamAttemptsModule {}

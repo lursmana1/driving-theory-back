@@ -48,3 +48,4 @@ export class Question {
 export const QuestionSchema = SchemaFactory.createForClass(Question);
 
 QuestionSchema.index({ lang: 1, categories: 1, subject: 1 });
+QuestionSchema.index({ lang: 1, id: 1 });

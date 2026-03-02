@@ -6,7 +6,7 @@ import { Model } from 'mongoose';
 import { ExamAttempt } from './entities/exam-attempt.entity';
 import { UserAnswer } from './entities/user-answer.entity';
 import { Question, QuestionDocument } from '../questions/schemas/question.schema';
-import { QuestionSelectionService } from './question-selection.service';
+import { QuestionSelectionService } from './question-selection/question-selection.service';
 import { DEFAULT_LANG } from '../common/constants/lang.constants.js';
 import {
   MAX_STATS_LIMIT,
