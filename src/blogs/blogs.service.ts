@@ -8,7 +8,7 @@ export type BlogWithCreatorName = Omit<Blog, 'creator'> & {
   creator: { name: string } | null;
 };
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 9;
 
 export type PaginatedBlogs = {
   data: BlogWithCreatorName[];
