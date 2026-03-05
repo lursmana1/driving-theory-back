@@ -8,12 +8,14 @@ import { Blog } from './blogs/entities/blog.entity';
 import { CategoriesModule } from './categories/categories.module';
 import { ExamsModule } from './exams/exams.module';
 import { ExamAttemptsModule } from './exam-attempts/exam-attempts.module';
+import { LeaderboardModule } from './leaderboard/leaderboard.module';
 import { QuestionsModule } from './questions/questions.module';
 import { UploadsModule } from './uploads/uploads.module';
 import { UsersModule } from './users/users.module';
 import { User } from './users/entities/user.entity';
 import { ExamAttempt } from './exam-attempts/entities/exam-attempt.entity';
 import { UserAnswer } from './exam-attempts/entities/user-answer.entity';
+import { LeaderboardPeriod } from './leaderboard/entities/leaderboard-period.entity';
 
 @Module({
   imports: [
@@ -27,7 +29,7 @@ import { UserAnswer } from './exam-attempts/entities/user-answer.entity';
         username: config.get<string>('DB_USERNAME'),
         password: config.get<string>('DB_PASSWORD'),
         database: config.get<string>('DB_DATABASE'),
-        entities: [User, Blog, ExamAttempt, UserAnswer],
+        entities: [User, Blog, ExamAttempt, UserAnswer, LeaderboardPeriod],
         synchronize: config.get('DB_SYNCHRONIZE') === 'true',
       }),
       inject: [ConfigService],
@@ -44,6 +46,7 @@ import { UserAnswer } from './exam-attempts/entities/user-answer.entity';
     CategoriesModule,
     ExamsModule,
     ExamAttemptsModule,
+    LeaderboardModule,
     QuestionsModule,
     UploadsModule,
     UsersModule,
