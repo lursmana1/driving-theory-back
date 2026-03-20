@@ -45,6 +45,14 @@ export class ExamAttemptsController {
     });
   }
 
+  @Post(':attemptId/finish')
+  finish(
+    @Req() req: { user: { userId: number } },
+    @Param('attemptId', ParseIntPipe) attemptId: number,
+  ) {
+    return this.attemptsService.finishAttempt(req.user.userId, attemptId);
+  }
+
   @Post(':attemptId/answer')
   submitAnswer(
     @Req() req: { user: { userId: number } },

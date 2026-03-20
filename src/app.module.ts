@@ -12,6 +12,8 @@ import { LeaderboardModule } from './leaderboard/leaderboard.module';
 import { QuestionsModule } from './questions/questions.module';
 import { UploadsModule } from './uploads/uploads.module';
 import { UsersModule } from './users/users.module';
+import { UserStatsModule } from './user-stats/user-stats.module';
+import { QuestionSyncModule } from './question-sync/question-sync.module';
 import { User } from './users/entities/user.entity';
 import { ExamAttempt } from './exam-attempts/entities/exam-attempt.entity';
 import { UserAnswer } from './exam-attempts/entities/user-answer.entity';
@@ -50,6 +52,8 @@ import { LeaderboardPeriod } from './leaderboard/entities/leaderboard-period.ent
     QuestionsModule,
     UploadsModule,
     UsersModule,
+    UserStatsModule,
+    QuestionSyncModule,
   ],
 })
 export class AppModule {}

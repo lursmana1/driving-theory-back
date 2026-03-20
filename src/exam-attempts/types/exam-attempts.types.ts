@@ -12,7 +12,10 @@ export interface AttemptSummary {
   answeredCount: number;
   correctCount: number;
   createdAt: Date;
+  endDate: Date | null;
   completedAt: Date | null;
+  passed: boolean | null;
+  durationSeconds: number | null;
 }
 
 export interface PaginatedAttempts {

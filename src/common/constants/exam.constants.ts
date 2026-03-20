@@ -10,6 +10,12 @@ export const MIN_ANSWERS_FOR_FULL_PERSONALIZATION = 500;
 /** Default question count per exam. */
 export const DEFAULT_QUESTION_COUNT = 30;
 
+/** Exam duration in minutes. */
+export const EXAM_DURATION_MINUTES = 30;
+
+/** Minimum fraction of correct answers to pass (0.7 = 70%). */
+export const EXAM_PASS_PERCENT = 0.7;
+
 /** Max history entries to load for weakness computation. */
 export const MAX_HISTORY_FOR_WEIGHTING = 500;
 

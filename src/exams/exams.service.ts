@@ -33,9 +33,7 @@ export class ExamsService {
 
     const exam = new this.examModel({
       title,
-      questions: (questionIds ?? []).map(
-        (id) => new Types.ObjectId(id as any),
-      ),
+      questions: (questionIds ?? []).map((id) => new Types.ObjectId(id as any)),
     });
 
     return exam.save();
@@ -82,10 +80,7 @@ export class ExamsService {
   }
 
   async findOne(id: string) {
-    const exam = await this.examModel
-      .findById(id)
-      .populate('questions')
-      .exec();
+    const exam = await this.examModel.findById(id).populate('questions').exec();
 
     if (!exam) {
       throw new NotFoundException(`Exam with id "${id}" not found`);

@@ -28,7 +28,16 @@ export class ExamAttempt {
   createdAt: Date;
 
   @Column({ type: 'datetime', nullable: true })
+  endDate: Date | null;
+
+  @Column({ type: 'datetime', nullable: true })
   completedAt: Date | null;
+
+  @Column({ type: 'boolean', nullable: true })
+  passed: boolean | null;
+
+  @Column({ type: 'int', nullable: true })
+  durationSeconds: number | null;
 
   @ManyToOne(() => User, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'userId' })

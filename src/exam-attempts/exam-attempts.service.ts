@@ -12,6 +12,8 @@ import {
   MAX_STATS_LIMIT,
   MAX_HISTORY_PAGE_SIZE,
   DEFAULT_HISTORY_PAGE_SIZE,
+  EXAM_DURATION_MINUTES,
+  EXAM_PASS_PERCENT,
 } from '../common/constants/exam.constants.js';
 import type {
   StartAttemptOptions,
@@ -35,22 +37,31 @@ export class ExamAttemptsService {
   async startAttempt(
     userId: number,
     options: StartAttemptOptions,
-  ): Promise<{ attemptId: number; questions: unknown[] }> {
+  ): Promise<{ attemptId: number; endDate: Date; questions: unknown[] }> {
     const lang = options.lang ?? DEFAULT_LANG;
     const questionIds = await this.selectionService.selectQuestions({
       ...options,
       userId,
     });
 
-    const attempt = this.attemptRepo.create({ userId, questionIds, lang });
+    const attempt = this.attemptRepo.create({
+      userId,
+      questionIds,
+      lang,
+    });
     const saved = await this.attemptRepo.save(attempt);
+
+    const endDate = new Date(
+      saved.createdAt.getTime() + EXAM_DURATION_MINUTES * 60 * 1000,
+    );
+    await this.attemptRepo.update(saved.id, { endDate });
 
     const questions = await this.questionModel
       .find({ id: { $in: questionIds }, lang })
       .lean()
       .exec();
 
-    return { attemptId: saved.id, questions };
+    return { attemptId: saved.id, endDate, questions };
   }
 
   async submitAnswer(
@@ -84,7 +95,53 @@ export class ExamAttemptsService {
       }),
     );
 
+    const updatedAttempt = await this.findAttemptForUser(attemptId, userId);
+    const allAnswered =
+      updatedAttempt.answers.length >= updatedAttempt.questionIds.length;
+    if (allAnswered && !updatedAttempt.completedAt) {
+      const correctCount = updatedAttempt.answers.filter((a) => a.correct).length;
+      const passed = correctCount / updatedAttempt.questionIds.length >= EXAM_PASS_PERCENT;
+      const completedAt = new Date();
+      const durationSeconds = Math.round(
+        (completedAt.getTime() - updatedAttempt.createdAt.getTime()) / 1000,
+      );
+      await this.attemptRepo.update(attemptId, {
+        completedAt,
+        passed,
+        durationSeconds,
+      });
+    }
+
     return { correct };
+  }
+
+  async finishAttempt(
+    userId: number,
+    attemptId: number,
+  ): Promise<{ completedAt: Date; passed: boolean; durationSeconds: number }> {
+    const attempt = await this.findAttemptForUser(attemptId, userId);
+    if (attempt.completedAt) {
+      return {
+        completedAt: attempt.completedAt,
+        passed: attempt.passed ?? false,
+        durationSeconds: attempt.durationSeconds ?? 0,
+      };
+    }
+
+    const correctCount = attempt.answers.filter((a) => a.correct).length;
+    const total = attempt.questionIds.length;
+    const passed = total > 0 && correctCount / total >= EXAM_PASS_PERCENT;
+    const completedAt = new Date();
+    const durationSeconds = Math.round(
+      (completedAt.getTime() - attempt.createdAt.getTime()) / 1000,
+    );
+    await this.attemptRepo.update(attemptId, {
+      completedAt,
+      passed,
+      durationSeconds,
+    });
+
+    return { completedAt, passed, durationSeconds };
   }
 
   async getHistory(
@@ -95,13 +152,18 @@ export class ExamAttemptsService {
     const pageSize = Math.min(Math.max(1, size), MAX_HISTORY_PAGE_SIZE);
     const pageNum = Math.max(1, page);
 
-    const [attempts, total] = await this.attemptRepo.findAndCount({
-      where: { userId },
-      relations: ['answers'],
-      order: { createdAt: 'DESC' },
-      skip: (pageNum - 1) * pageSize,
-      take: pageSize,
-    });
+    const qb = this.attemptRepo
+      .createQueryBuilder('e')
+      .where('e.userId = :userId', { userId })
+      .andWhere(
+        'EXISTS (SELECT 1 FROM user_answers ua WHERE ua.attemptId = e.id)',
+      )
+      .orderBy('e.createdAt', 'DESC')
+      .skip((pageNum - 1) * pageSize)
+      .take(pageSize)
+      .leftJoinAndSelect('e.answers', 'answers');
+
+    const [attempts, total] = await qb.getManyAndCount();
 
     return {
       data: attempts.map((a) => this.toAttemptSummary(a)),
@@ -125,7 +187,10 @@ export class ExamAttemptsService {
       questions,
       answers: attempt.answers,
       createdAt: attempt.createdAt,
+      endDate: attempt.endDate,
       completedAt: attempt.completedAt,
+      passed: attempt.passed,
+      durationSeconds: attempt.durationSeconds,
     };
   }
 
@@ -173,7 +238,10 @@ export class ExamAttemptsService {
       answeredCount: attempt.answers.length,
       correctCount: attempt.answers.filter((x) => x.correct).length,
       createdAt: attempt.createdAt,
+      endDate: attempt.endDate,
       completedAt: attempt.completedAt,
+      passed: attempt.passed,
+      durationSeconds: attempt.durationSeconds,
     };
   }
 }

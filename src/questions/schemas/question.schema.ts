@@ -43,6 +43,9 @@ export class Question {
 
   @Prop({ default: 'ka' })
   lang: string;
+
+  @Prop()
+  ai_tutor: string;
 }
 
 export const QuestionSchema = SchemaFactory.createForClass(Question);

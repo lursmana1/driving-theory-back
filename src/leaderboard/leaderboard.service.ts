@@ -45,6 +45,7 @@ export class LeaderboardService {
       .innerJoin('a.attempt', 't')
       .innerJoin('t.user', 'u')
       .where('a.correct = :correct', { correct: true })
+      .andWhere('t.completedAt IS NOT NULL')
       .andWhere('a.createdAt >= :startDate', { startDate })
       .andWhere('a.createdAt < :endDate', { endDate })
       .select(['u.id', 'u.name', 'u.surname'])

@@ -19,6 +19,6 @@ import { AuthModule } from '../auth/auth.module';
   ],
   controllers: [ExamAttemptsController],
   providers: [ExamAttemptsService, QuestionSelectionService, WeaknessService, QuestionSamplingService],
-  exports: [ExamAttemptsService, QuestionSelectionService],
+  exports: [ExamAttemptsService, QuestionSelectionService, WeaknessService],
 })
 export class ExamAttemptsModule {}
