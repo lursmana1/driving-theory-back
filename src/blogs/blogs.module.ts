@@ -7,11 +7,7 @@ import { S3Module } from '../s3/s3.module';
 import { AuthModule } from '../auth/auth.module';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([Blog]),
-    S3Module,
-    AuthModule,
-  ],
+  imports: [TypeOrmModule.forFeature([Blog]), S3Module, AuthModule],
   controllers: [BlogsController],
   providers: [BlogsService],
 })

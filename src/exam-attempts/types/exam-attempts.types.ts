@@ -27,7 +27,7 @@ export interface PaginatedAttempts {
 
 export interface RawAnswerRow {
   questionId: number;
-  subject: number;
+  subject: number | null;
   correct: boolean;
   chosenAnswer: string;
   createdAt: Date;

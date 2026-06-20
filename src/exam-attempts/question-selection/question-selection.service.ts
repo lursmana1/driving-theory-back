@@ -33,7 +33,9 @@ export class QuestionSelectionService {
       options.allSubjects,
     );
 
-    const totalAnswers = await this.weaknessService.getTotalAnswerCount(options.userId);
+    const totalAnswers = await this.weaknessService.getTotalAnswerCount(
+      options.userId,
+    );
 
     if (totalAnswers < MIN_ANSWERS_FOR_PERSONALIZATION) {
       const ids = await this.samplingService.sampleRandom(match, count);
@@ -41,12 +43,24 @@ export class QuestionSelectionService {
     }
 
     const weakness = await this.weaknessService.getWeaknessIds(options.userId);
-    const ratios = totalAnswers >= MIN_ANSWERS_FOR_FULL_PERSONALIZATION ? FULL_RATIOS : LIGHT_RATIOS;
+    const ratios =
+      totalAnswers >= MIN_ANSWERS_FOR_FULL_PERSONALIZATION
+        ? FULL_RATIOS
+        : LIGHT_RATIOS;
 
-    let ids = await this.samplingService.sampleWeighted(match, count, weakness, ratios);
+    let ids = await this.samplingService.sampleWeighted(
+      match,
+      count,
+      weakness,
+      ratios,
+    );
 
     if (ids.length < count) {
-      const extra = await this.samplingService.sampleRandom(match, count - ids.length, ids);
+      const extra = await this.samplingService.sampleRandom(
+        match,
+        count - ids.length,
+        ids,
+      );
       ids = [...ids, ...extra];
     }
 
@@ -61,4 +75,4 @@ export class QuestionSelectionService {
     }
     return out;
   }
-}
+}                                                                                                                                                                                                                                                         

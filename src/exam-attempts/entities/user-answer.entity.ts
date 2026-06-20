@@ -19,8 +19,8 @@ export class UserAnswer {
   @Column()
   questionId: number;
 
-  @Column()
-  subject: number;
+  @Column({ type: 'int', nullable: true })
+  subject: number | null;
 
   @Column()
   correct: boolean;

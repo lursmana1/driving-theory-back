@@ -1,8 +1,10 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { MongooseModule } from '@nestjs/mongoose';
-import { Question, QuestionSchema } from '../questions/schemas/question.schema';
+import { ConfigModule } from '@nestjs/config';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { Question } from '../questions/entities/question.entity';
 import { QuestionSyncService } from './question-sync.service';
+import { buildTypeOrmOptions } from '../config/typeorm.config';
+import { ConfigService } from '@nestjs/config';
 
 /**
  * Minimal module for standalone sync script (avoids loading full app).
@@ -10,14 +12,12 @@ import { QuestionSyncService } from './question-sync.service';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
-    MongooseModule.forRootAsync({
+    TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
-      useFactory: (config: ConfigService) => ({
-        uri: config.get<string>('MONGODB_URI'),
-      }),
+      useFactory: (config: ConfigService) => buildTypeOrmOptions(config),
       inject: [ConfigService],
     }),
-    MongooseModule.forFeature([{ name: Question.name, schema: QuestionSchema }]),
+    TypeOrmModule.forFeature([Question]),
   ],
   providers: [QuestionSyncService],
   exports: [QuestionSyncService],

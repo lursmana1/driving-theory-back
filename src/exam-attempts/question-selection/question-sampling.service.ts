@@ -1,19 +1,18 @@
 import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model, PipelineStage } from 'mongoose';
-import { Question, QuestionDocument } from '../../questions/schemas/question.schema';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Question } from '../../questions/entities/question.entity';
+import {
+  applyQuestionFilters,
+  QuestionFilterOpts,
+} from '../../questions/question-query.util';
 import type { SelectionRatios, WeaknessIds } from './selection.types.js';
 
-export type MatchFilter = Record<string, unknown>;
-
-/**
- * MongoDB sampling: random and weighted (mistakes + success).
- */
 @Injectable()
 export class QuestionSamplingService {
   constructor(
-    @InjectModel(Question.name)
-    private readonly questionModel: Model<QuestionDocument>,
+    @InjectRepository(Question)
+    private readonly questionRepo: Repository<Question>,
   ) {}
 
   buildMatchFilter(
@@ -21,30 +20,39 @@ export class QuestionSamplingService {
     subjects?: number[],
     categories?: number[],
     allSubjects?: boolean,
-  ): MatchFilter {
-    const match: MatchFilter = { lang };
-    if (categories?.length) match.categories = { $in: categories };
-    if (!allSubjects && subjects?.length) match.subject = { $in: subjects };
-    return match;
+  ): QuestionFilterOpts {
+    return {
+      lang,
+      subjects,
+      categories,
+      allSubjects,
+    };
   }
 
-  async sampleRandom(match: MatchFilter, limit: number, exclude: number[] = []): Promise<number[]> {
-    const filter = exclude.length ? { ...match, id: { $nin: exclude } } : match;
-    const docs = await this.questionModel
-      .aggregate([
-        { $match: filter },
-        { $group: { _id: '$id' } },
-        { $addFields: { r: { $rand: {} } } },
-        { $sort: { r: 1 as 1 } },
-        { $limit: limit },
-        { $project: { id: '$_id', _id: 0 } },
-      ])
-      .exec();
-    return docs.map((d: { id: number }) => d.id);
+  async sampleRandom(
+    filter: QuestionFilterOpts,
+    limit: number,
+    exclude: number[] = [],
+  ): Promise<number[]> {
+    if (limit <= 0) return [];
+
+    const qb = this.questionRepo
+      .createQueryBuilder('q')
+      .select('q.id', 'id');
+    applyQuestionFilters(qb, 'q', filter);
+
+    if (exclude.length) {
+      qb.andWhere('q.id NOT IN (:...exclude)', { exclude });
+    }
+
+    const rows = await qb.orderBy('RANDOM()').limit(limit).getRawMany<{
+      id: string;
+    }>();
+    return rows.map((r) => Number(r.id));
   }
 
   async sampleWeighted(
-    match: MatchFilter,
+    filter: QuestionFilterOpts,
     count: number,
     weakness: WeaknessIds,
     ratios: SelectionRatios,
@@ -54,94 +62,112 @@ export class QuestionSamplingService {
     const successCount = count - randomCount - mistakesCount;
 
     const selectedIds = await this.sampleMistakesAndSuccess(
-      match,
+      filter,
       weakness,
       mistakesCount,
       successCount,
     );
-    const randomIds = await this.sampleRandom(match, randomCount, selectedIds);
+    const randomIds = await this.sampleRandom(filter, randomCount, selectedIds);
 
     return [...selectedIds, ...randomIds];
   }
 
   private async sampleMistakesAndSuccess(
-    match: MatchFilter,
+    filter: QuestionFilterOpts,
     weakness: WeaknessIds,
     mistakesCount: number,
     successCount: number,
   ): Promise<number[]> {
-    const { mistakeIds, successIds, mistakeSubjects, successSubjects } = weakness;
+    const { mistakeIds, successIds, mistakeSubjects, successSubjects } =
+      weakness;
 
-    const mistakeMatch = this.buildMistakeMatch(match, mistakeIds, mistakeSubjects);
-    const successMatch = this.buildSuccessMatch(match, mistakeIds, successIds, successSubjects);
+    const [mistakeRows, successRows] = await Promise.all([
+      this.sampleMistakeIds(
+        filter,
+        mistakeIds,
+        mistakeSubjects,
+        mistakesCount,
+      ),
+      this.sampleSuccessIds(
+        filter,
+        mistakeIds,
+        successIds,
+        successSubjects,
+        successCount,
+      ),
+    ]);
 
-    const pipeline: Record<string, unknown>[] = [
-      {
-        $facet: {
-          mistakes: [
-            { $match: mistakeMatch },
-            { $group: { _id: '$id' } },
-            { $addFields: { r: { $rand: {} } } },
-            { $sort: { r: 1 as 1 } },
-            { $limit: mistakesCount },
-          ],
-          success: [
-            { $match: successMatch },
-            { $group: { _id: '$id' } },
-            { $addFields: { r: { $rand: {} } } },
-            { $sort: { r: 1 as 1 } },
-            { $limit: successCount },
-          ],
-        },
-      },
-      {
-        $addFields: {
-          mistakeIds: { $map: { input: '$mistakes', as: 'm', in: '$$m._id' } },
-          successIds: { $map: { input: '$success', as: 's', in: '$$s._id' } },
-        },
-      },
-      { $addFields: { selectedIds: { $concatArrays: ['$mistakeIds', '$successIds'] } } },
-      { $project: { selectedIds: 1 } },
-    ];
-
-    const [result] = await this.questionModel.aggregate(pipeline as unknown as PipelineStage[]).exec();
-    return result?.selectedIds ?? [];
+    return [...mistakeRows, ...successRows];
   }
 
-  private buildMistakeMatch(
-    match: MatchFilter,
+  private async sampleMistakeIds(
+    filter: QuestionFilterOpts,
     mistakeIds: number[],
     mistakeSubjects: number[],
-  ): MatchFilter {
+    limit: number,
+  ): Promise<number[]> {
+    if (limit <= 0) return [];
     const hasMistakes = mistakeIds.length > 0 || mistakeSubjects.length > 0;
-    if (!hasMistakes) return { ...match, _id: null };
+    if (!hasMistakes) return [];
 
-    const orConditions = [
-      ...(mistakeIds.length ? [{ id: { $in: mistakeIds } }] : []),
-      ...(mistakeSubjects.length ? [{ subject: { $in: mistakeSubjects } }] : []),
-    ].filter(Boolean);
+    const qb = this.questionRepo
+      .createQueryBuilder('q')
+      .select('q.id', 'id');
+    applyQuestionFilters(qb, 'q', filter);
 
-    return { $and: [match, { $or: orConditions }] } as MatchFilter;
+    const orParts: string[] = [];
+    const params: Record<string, unknown> = {};
+    if (mistakeIds.length) {
+      orParts.push('q.id IN (:...mistakeIds)');
+      params.mistakeIds = mistakeIds;
+    }
+    if (mistakeSubjects.length) {
+      orParts.push('q.subject IN (:...mistakeSubjects)');
+      params.mistakeSubjects = mistakeSubjects;
+    }
+    qb.andWhere(`(${orParts.join(' OR ')})`, params);
+
+    const rows = await qb.orderBy('RANDOM()').limit(limit).getRawMany<{
+      id: string;
+    }>();
+    return rows.map((r) => Number(r.id));
   }
 
-  private buildSuccessMatch(
-    match: MatchFilter,
+  private async sampleSuccessIds(
+    filter: QuestionFilterOpts,
     mistakeIds: number[],
     successIds: number[],
     successSubjects: number[],
-  ): MatchFilter {
+    limit: number,
+  ): Promise<number[]> {
+    if (limit <= 0) return [];
     const hasSuccess = successIds.length > 0 || successSubjects.length > 0;
-    if (!hasSuccess) return { ...match, _id: null };
+    if (!hasSuccess) return [];
 
-    const andConditions: unknown[] = [match];
-    if (mistakeIds.length) andConditions.push({ id: { $nin: mistakeIds } });
+    const qb = this.questionRepo
+      .createQueryBuilder('q')
+      .select('q.id', 'id');
+    applyQuestionFilters(qb, 'q', filter);
 
-    const orConditions = [
-      ...(successIds.length ? [{ id: { $in: successIds } }] : []),
-      ...(successSubjects.length ? [{ subject: { $in: successSubjects } }] : []),
-    ].filter(Boolean);
-    andConditions.push({ $or: orConditions });
+    if (mistakeIds.length) {
+      qb.andWhere('q.id NOT IN (:...mistakeIds)', { mistakeIds });
+    }
 
-    return { $and: andConditions } as MatchFilter;
+    const orParts: string[] = [];
+    const params: Record<string, unknown> = {};
+    if (successIds.length) {
+      orParts.push('q.id IN (:...successIds)');
+      params.successIds = successIds;
+    }
+    if (successSubjects.length) {
+      orParts.push('q.subject IN (:...successSubjects)');
+      params.successSubjects = successSubjects;
+    }
+    qb.andWhere(`(${orParts.join(' OR ')})`, params);
+
+    const rows = await qb.orderBy('RANDOM()').limit(limit).getRawMany<{
+      id: string;
+    }>();
+    return rows.map((r) => Number(r.id));
   }
 }

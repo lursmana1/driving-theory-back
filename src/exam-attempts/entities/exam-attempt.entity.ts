@@ -18,7 +18,7 @@ export class ExamAttempt {
   @Column()
   userId: number;
 
-  @Column({ type: 'json' })
+  @Column({ type: 'jsonb' })
   questionIds: number[];
 
   @Column({ default: 'ka' })
@@ -27,10 +27,10 @@ export class ExamAttempt {
   @CreateDateColumn()
   createdAt: Date;
 
-  @Column({ type: 'datetime', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   endDate: Date | null;
 
-  @Column({ type: 'datetime', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   completedAt: Date | null;
 
   @Column({ type: 'boolean', nullable: true })

@@ -1,26 +1,12 @@
 import { Module } from '@nestjs/common';
-import { MongooseModule } from '@nestjs/mongoose';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { ExamsService } from './exams.service';
 import { ExamsController } from './exams.controller';
-import { Exam, ExamSchema } from './schemas/exam.schema';
-import {
-  Question,
-  QuestionSchema,
-} from '../questions/schemas/question.schema';
+import { Exam } from './entities/exam.entity';
+import { Question } from '../questions/entities/question.entity';
 
 @Module({
-  imports: [
-    MongooseModule.forFeature([
-      {
-        name: Exam.name,
-        schema: ExamSchema,
-      },
-      {
-        name: Question.name,
-        schema: QuestionSchema,
-      },
-    ]),
-  ],
+  imports: [TypeOrmModule.forFeature([Exam, Question])],
   controllers: [ExamsController],
   providers: [ExamsService],
 })

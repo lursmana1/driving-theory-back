@@ -39,7 +39,8 @@ export class BlogsController {
   ) {
     validateImageFile(file, true);
     if (!name?.trim()) throw new BadRequestException('Name is required');
-    if (!description?.trim()) throw new BadRequestException('Description is required');
+    if (!description?.trim())
+      throw new BadRequestException('Description is required');
     if (!content?.trim()) throw new BadRequestException('Content is required');
 
     return this.blogsService.create({

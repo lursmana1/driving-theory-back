@@ -1,0 +1,35 @@
+services:
+  postgres-keycloak:
+    container_name: postgres-keycloak
+    image: postgres:16
+    restart: unless-stopped
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: Jakarta123.
+    ports:
+      - '127.0.0.1:5432:5432'
+    # networks:
+    # - colours-net
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 256M
+        reservations:
+          cpus: '0.05'
+          memory: 64M
+
+# networks:
+#   colours-net:
+#     external: true
+
+volumes:
+  # external: managed outside compose so `docker compose down -v` can never
+  # delete the Keycloak database. Pre-create on a new host with:
+  #   docker volume create infra_postgres_data
+  postgres_data:
+    # external: true
+    name: posgress

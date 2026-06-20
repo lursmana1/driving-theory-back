@@ -13,8 +13,8 @@ export const DEFAULT_QUESTION_COUNT = 30;
 /** Exam duration in minutes. */
 export const EXAM_DURATION_MINUTES = 30;
 
-/** Minimum fraction of correct answers to pass (0.7 = 70%). */
-export const EXAM_PASS_PERCENT = 0.7;
+/** Minimum fraction of correct answers to pass (0.9 = 90%). */
+export const EXAM_PASS_PERCENT = 0.9;
 
 /** Max history entries to load for weakness computation. */
 export const MAX_HISTORY_FOR_WEIGHTING = 500;
@@ -27,6 +27,9 @@ export const MAX_CANDIDATE_SAMPLE_SIZE = 200;
 
 /** Max raw answers to return in stats. */
 export const MAX_STATS_LIMIT = 1000;
+
+/** Minimum per-subject attempts (correct + wrong) before weak-subject ranking is reliable. */
+export const MIN_SUBJECT_ATTEMPTS_FOR_STATS = 10;
 
 /** Max page size for history. */
 export const MAX_HISTORY_PAGE_SIZE = 50;

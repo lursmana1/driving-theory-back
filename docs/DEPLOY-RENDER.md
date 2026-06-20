@@ -16,4 +16,18 @@ If **Root Directory** is set to `src`, Render looks for `src/dist/main.js` and f
 
 ## Environment
 
-Add the same variables as local `.env` (`MONGODB_URI`, `DB_*`, `JWT_*`, `PORT`, etc.). Render sets `PORT` automatically.
+Use PostgreSQL on Neon (or Render Postgres). See `DEPLOY_NOTES.md` for the full checklist.
+
+Minimum:
+
+```env
+DB_TYPE=postgres
+DATABASE_URL=<Neon connection string>
+DB_SYNCHRONIZE=false
+JWT_SECRET=...
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
+GOOGLE_CALLBACK_URL=https://your-api.onrender.com/auth/google/callback
+```
+
+Render sets `PORT` automatically.

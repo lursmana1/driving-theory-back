@@ -1,11 +1,13 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
 import { ExamAttempt } from './entities/exam-attempt.entity';
 import { UserAnswer } from './entities/user-answer.entity';
-import { Question, QuestionDocument } from '../questions/schemas/question.schema';
+import { Question } from '../questions/entities/question.entity';
 import { QuestionSelectionService } from './question-selection/question-selection.service';
 import { DEFAULT_LANG } from '../common/constants/lang.constants.js';
 import {
@@ -29,8 +31,8 @@ export class ExamAttemptsService {
     private readonly attemptRepo: Repository<ExamAttempt>,
     @InjectRepository(UserAnswer)
     private readonly answerRepo: Repository<UserAnswer>,
-    @InjectModel(Question.name)
-    private readonly questionModel: Model<QuestionDocument>,
+    @InjectRepository(Question)
+    private readonly questionRepo: Repository<Question>,
     private readonly selectionService: QuestionSelectionService,
   ) {}
 
@@ -56,10 +58,7 @@ export class ExamAttemptsService {
     );
     await this.attemptRepo.update(saved.id, { endDate });
 
-    const questions = await this.questionModel
-      .find({ id: { $in: questionIds }, lang })
-      .lean()
-      .exec();
+    const questions = await this.findQuestionsByIds(questionIds, lang);
 
     return { attemptId: saved.id, endDate, questions };
   }
@@ -74,10 +73,9 @@ export class ExamAttemptsService {
 
     this.validateQuestionInAttempt(attempt, questionId);
 
-    const question = await this.questionModel
-      .findOne({ id: questionId, lang: attempt.lang })
-      .lean()
-      .exec();
+    const question = await this.questionRepo.findOne({
+      where: { id: questionId, lang: attempt.lang },
+    });
 
     if (!question) {
       throw new NotFoundException('Question not found');
@@ -99,8 +97,11 @@ export class ExamAttemptsService {
     const allAnswered =
       updatedAttempt.answers.length >= updatedAttempt.questionIds.length;
     if (allAnswered && !updatedAttempt.completedAt) {
-      const correctCount = updatedAttempt.answers.filter((a) => a.correct).length;
-      const passed = correctCount / updatedAttempt.questionIds.length >= EXAM_PASS_PERCENT;
+      const correctCount = updatedAttempt.answers.filter(
+        (a) => a.correct,
+      ).length;
+      const passed =
+        correctCount / updatedAttempt.questionIds.length >= EXAM_PASS_PERCENT;
       const completedAt = new Date();
       const durationSeconds = Math.round(
         (completedAt.getTime() - updatedAttempt.createdAt.getTime()) / 1000,
@@ -156,7 +157,7 @@ export class ExamAttemptsService {
       .createQueryBuilder('e')
       .where('e.userId = :userId', { userId })
       .andWhere(
-        'EXISTS (SELECT 1 FROM user_answers ua WHERE ua.attemptId = e.id)',
+        'EXISTS (SELECT 1 FROM user_answers ua WHERE ua."attemptId" = e.id)',
       )
       .orderBy('e.createdAt', 'DESC')
       .skip((pageNum - 1) * pageSize)
@@ -176,10 +177,10 @@ export class ExamAttemptsService {
   async getAttempt(userId: number, attemptId: number) {
     const attempt = await this.findAttemptForUser(attemptId, userId);
 
-    const questions = await this.questionModel
-      .find({ id: { $in: attempt.questionIds }, lang: attempt.lang })
-      .lean()
-      .exec();
+    const questions = await this.findQuestionsByIds(
+      attempt.questionIds,
+      attempt.lang,
+    );
 
     return {
       id: attempt.id,
@@ -194,7 +195,10 @@ export class ExamAttemptsService {
     };
   }
 
-  async getRawAnswers(userId: number, limit = MAX_STATS_LIMIT): Promise<RawAnswerRow[]> {
+  async getRawAnswers(
+    userId: number,
+    limit = MAX_STATS_LIMIT,
+  ): Promise<RawAnswerRow[]> {
     const answers = await this.answerRepo.find({
       where: { attempt: { userId } },
       relations: ['attempt'],
@@ -211,7 +215,19 @@ export class ExamAttemptsService {
     }));
   }
 
-  private async findAttemptForUser(attemptId: number, userId: number): Promise<ExamAttempt> {
+  private async findQuestionsByIds(ids: number[], lang: string) {
+    if (!ids.length) return [];
+    return this.questionRepo
+      .createQueryBuilder('q')
+      .where('q.lang = :lang', { lang })
+      .andWhere('q.id IN (:...ids)', { ids })
+      .getMany();
+  }
+
+  private async findAttemptForUser(
+    attemptId: number,
+    userId: number,
+  ): Promise<ExamAttempt> {
     const attempt = await this.attemptRepo.findOne({
       where: { id: attemptId, userId },
       relations: ['answers'],
@@ -222,7 +238,10 @@ export class ExamAttemptsService {
     return attempt;
   }
 
-  private validateQuestionInAttempt(attempt: ExamAttempt, questionId: number): void {
+  private validateQuestionInAttempt(
+    attempt: ExamAttempt,
+    questionId: number,
+  ): void {
     if (!attempt.questionIds.includes(questionId)) {
       throw new ForbiddenException('Question not in this attempt');
     }

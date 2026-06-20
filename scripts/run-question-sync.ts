@@ -9,7 +9,7 @@
  *   npx ts-node -r tsconfig-paths/register scripts/run-question-sync.ts 1200    # Day 1: IDs 1-1200
  *   npx ts-node -r tsconfig-paths/register scripts/run-question-sync.ts 600 1200 # Day 2: IDs 1201-1800
  *
- * Requires: GEMINI_API_KEY, MONGODB_URI in .env
+ * Requires: GEMINI_API_KEY, PG_* (or DATABASE_URL) in .env
  */
 
 import { NestFactory } from '@nestjs/core';

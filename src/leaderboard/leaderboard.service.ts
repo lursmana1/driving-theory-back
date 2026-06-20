@@ -125,8 +125,7 @@ export class LeaderboardService {
 
     const existing = await this.periodRepo.find();
     const overlaps = existing.some(
-      (p) =>
-        dto.startDate < p.endDate && dto.endDate > p.startDate,
+      (p) => dto.startDate < p.endDate && dto.endDate > p.startDate,
     );
     if (overlaps) {
       throw new ConflictException(

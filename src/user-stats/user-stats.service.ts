@@ -1,11 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { InjectModel } from '@nestjs/mongoose';
 import { Repository } from 'typeorm';
-import { Model } from 'mongoose';
 import { UserAnswer } from '../exam-attempts/entities/user-answer.entity';
-import { Question, QuestionDocument } from '../questions/schemas/question.schema';
+import { Question } from '../questions/entities/question.entity';
 import { DEFAULT_LANG } from '../common/constants/lang.constants.js';
+import { MIN_SUBJECT_ATTEMPTS_FOR_STATS } from '../common/constants/exam.constants.js';
 
 const TOP_COUNT = 10;
 
@@ -37,8 +36,8 @@ export class UserStatsService {
   constructor(
     @InjectRepository(UserAnswer)
     private readonly answerRepo: Repository<UserAnswer>,
-    @InjectModel(Question.name)
-    private readonly questionModel: Model<QuestionDocument>,
+    @InjectRepository(Question)
+    private readonly questionRepo: Repository<Question>,
   ) {}
 
   async getWeakQuestions(
@@ -56,7 +55,10 @@ export class UserStatsService {
       .orderBy('wrongCount', 'DESC');
 
     const [rows, countResult] = await Promise.all([
-      baseQb.clone().limit(TOP_COUNT).getRawMany<{ questionId: string; wrongCount: string }>(),
+      baseQb
+        .clone()
+        .limit(TOP_COUNT)
+        .getRawMany<{ questionId: string; wrongCount: string }>(),
       this.answerRepo
         .createQueryBuilder('a')
         .innerJoin('a.attempt', 't')
@@ -68,10 +70,14 @@ export class UserStatsService {
 
     const total = Number(countResult?.cnt ?? 0);
     const questionIds = rows.map((r) => Number(r.questionId));
-    const questions = await this.questionModel
-      .find({ id: { $in: questionIds }, lang })
-      .lean()
-      .exec();
+    const questions =
+      questionIds.length > 0
+        ? await this.questionRepo
+            .createQueryBuilder('q')
+            .where('q.lang = :lang', { lang })
+            .andWhere('q.id IN (:...questionIds)', { questionIds })
+            .getMany()
+        : [];
     const questionMap = new Map(questions.map((q) => [q.id, q]));
 
     return {
@@ -88,29 +94,34 @@ export class UserStatsService {
     userId: number,
     lang: string = DEFAULT_LANG,
   ): Promise<WeakSubjectsResponse> {
+    type SubjectCounts = { wrongCount: number; correctCount: number };
+    type EligibleSubject = {
+      subjectId: number;
+      counts: SubjectCounts;
+      attempted: number;
+      correctnessRate: number;
+    };
+
     const rawRows = await this.answerRepo.manager.query<
       { subjectId: number; correct: boolean }[]
     >(
       `
-      SELECT a.subject AS subjectId, a.correct
+      SELECT a.subject AS "subjectId", a.correct
       FROM user_answers a
-      INNER JOIN exam_attempts t ON a.attemptId = t.id
+      INNER JOIN exam_attempts t ON a."attemptId" = t.id
       INNER JOIN (
-        SELECT a2.questionId, MAX(a2.id) AS latestId
+        SELECT a2."questionId", MAX(a2.id) AS "latestId"
         FROM user_answers a2
-        INNER JOIN exam_attempts t2 ON a2.attemptId = t2.id
-        WHERE t2.userId = ?
-        GROUP BY a2.questionId
-      ) latest ON a.questionId = latest.questionId AND a.id = latest.latestId
-      WHERE t.userId = ?
+        INNER JOIN exam_attempts t2 ON a2."attemptId" = t2.id
+        WHERE t2."userId" = $1
+        GROUP BY a2."questionId"
+      ) latest ON a."questionId" = latest."questionId" AND a.id = latest."latestId"
+      WHERE t."userId" = $2
       `,
       [userId, userId],
     );
 
-    const bySubject = new Map<
-      number,
-      { wrongCount: number; correctCount: number }
-    >();
+    const bySubject = new Map<number, SubjectCounts>();
     for (const r of rawRows) {
       const sub = Number(r.subjectId);
       const curr = bySubject.get(sub) ?? {
@@ -125,25 +136,52 @@ export class UserStatsService {
       bySubject.set(sub, curr);
     }
 
-    const sorted = [...bySubject.entries()]
-      .filter(([, v]) => v.wrongCount > 0)
-      .sort((a, b) => b[1].wrongCount - a[1].wrongCount);
+    const eligible: EligibleSubject[] = [];
+    for (const [subjectId, counts] of bySubject.entries()) {
+      const attempted = counts.correctCount + counts.wrongCount;
+      if (
+        attempted < MIN_SUBJECT_ATTEMPTS_FOR_STATS ||
+        counts.wrongCount === 0
+      ) {
+        continue;
+      }
+      eligible.push({
+        subjectId,
+        counts,
+        attempted,
+        correctnessRate: counts.correctCount / attempted,
+      });
+    }
 
-    const total = sorted.length;
-    const topRows = sorted.slice(0, TOP_COUNT);
-    const subjectIds = topRows.map(([id]) => id);
-    const totalBySubject = await this.questionModel
-      .aggregate<{ _id: number; count: number }>([
-        { $match: { subject: { $in: subjectIds }, lang } },
-        { $group: { _id: '$subject', count: { $sum: 1 } } },
-      ])
-      .exec();
+    eligible.sort((a, b) => {
+      if (a.correctnessRate !== b.correctnessRate) {
+        return a.correctnessRate - b.correctnessRate;
+      }
+      return b.attempted - a.attempted;
+    });
+
+    const total = eligible.length;
+    const topRows = eligible.slice(0, TOP_COUNT);
+    const subjectIds = topRows.map((x) => x.subjectId);
+    if (subjectIds.length === 0) {
+      return { data: [], total };
+    }
+
+    const totalBySubject = await this.questionRepo
+      .createQueryBuilder('q')
+      .select('q.subject', 'subject')
+      .addSelect('COUNT(*)', 'count')
+      .where('q.lang = :lang', { lang })
+      .andWhere('q.subject IN (:...subjectIds)', { subjectIds })
+      .groupBy('q.subject')
+      .getRawMany<{ subject: string; count: string }>();
+
     const totalMap = new Map(
-      totalBySubject.map((x) => [x._id, x.count]),
+      totalBySubject.map((x) => [Number(x.subject), Number(x.count)]),
     );
 
     return {
-      data: topRows.map(([subjectId, counts]) => ({
+      data: topRows.map(({ subjectId, counts }) => ({
         subjectId,
         wrongCount: counts.wrongCount,
         correctCount: counts.correctCount,

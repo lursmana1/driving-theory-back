@@ -18,4 +18,3 @@ export class Exam {
 }
 
 export const ExamSchema = SchemaFactory.createForClass(Exam);
-

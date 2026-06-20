@@ -14,7 +14,11 @@ import {
 import { ExamAttemptsService } from './exam-attempts.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { parseLang } from '../common/utils/parse-lang.util.js';
-import { parseIdList, parseCount, parseNumericId } from '../common/utils/parse-ids.util.js';
+import {
+  parseIdList,
+  parseCount,
+  parseNumericId,
+} from '../common/utils/parse-ids.util.js';
 import {
   MAX_STATS_LIMIT,
   MAX_HISTORY_PAGE_SIZE,
@@ -77,7 +81,10 @@ export class ExamAttemptsController {
     @Req() req: { user: { userId: number } },
     @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
   ) {
-    const safeLimit = limit != null ? Math.min(Math.max(1, limit), MAX_STATS_LIMIT) : MAX_STATS_LIMIT;
+    const safeLimit =
+      limit != null
+        ? Math.min(Math.max(1, limit), MAX_STATS_LIMIT)
+        : MAX_STATS_LIMIT;
     return this.attemptsService.getRawAnswers(req.user.userId, safeLimit);
   }
 
@@ -90,7 +97,10 @@ export class ExamAttemptsController {
     return this.attemptsService.getHistory(
       req.user.userId,
       Math.max(1, page ?? 1),
-      Math.min(MAX_HISTORY_PAGE_SIZE, Math.max(1, size ?? DEFAULT_HISTORY_PAGE_SIZE)),
+      Math.min(
+        MAX_HISTORY_PAGE_SIZE,
+        Math.max(1, size ?? DEFAULT_HISTORY_PAGE_SIZE),
+      ),
     );
   }
 

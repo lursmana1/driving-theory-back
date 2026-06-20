@@ -10,10 +10,10 @@ export class LeaderboardPeriod {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'datetime' })
+  @Column({ type: 'timestamp' })
   startDate: Date;
 
-  @Column({ type: 'datetime' })
+  @Column({ type: 'timestamp' })
   endDate: Date;
 
   @Column({ type: 'varchar', length: 100, nullable: true })

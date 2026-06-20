@@ -3,7 +3,7 @@
 /node_modules
 /build
 *.tsbuildinfo
-
+google-cloud-key.json
 # Logs
 logs
 *.log
@@ -42,6 +42,13 @@ lerna-debug.log*
 .env.test.local
 .env.production.local
 .env.local
+
+# Local DB dumps and script checkpoints (do not commit)
+/backups/
+.recovery-question-checkpoint.json
+.translate-correct-checkpoint.json
+problematic-question-ids.csv
+problematic-question-ids.json
 
 # temp directory
 .temp

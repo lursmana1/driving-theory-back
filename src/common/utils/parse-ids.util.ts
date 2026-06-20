@@ -24,6 +24,7 @@ export function parseCount(value: string | undefined): number | undefined {
  * Caller should throw BadRequestException when null.
  */
 export function parseNumericId(value: unknown): number | null {
-  const n = typeof value === 'number' ? value : parseInt(String(value ?? ''), 10);
+  const n =
+    typeof value === 'number' ? value : parseInt(String(value ?? ''), 10);
   return Number.isFinite(n) ? n : null;
 }

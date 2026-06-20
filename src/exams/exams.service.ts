@@ -1,13 +1,11 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { CreateExamDto } from './dto/create-exam.dto';
 import { UpdateExamDto } from './dto/update-exam.dto';
-import { Exam, ExamDocument } from './schemas/exam.schema';
-import {
-  Question,
-  QuestionDocument,
-} from '../questions/schemas/question.schema';
+import { Exam } from './entities/exam.entity';
+import { Question } from '../questions/entities/question.entity';
+import { applyQuestionFilters } from '../questions/question-query.util';
 
 interface GenerateExamOptions {
   lang: string;
@@ -21,25 +19,27 @@ interface GenerateExamOptions {
 @Injectable()
 export class ExamsService {
   constructor(
-    @InjectModel(Exam.name)
-    private readonly examModel: Model<ExamDocument>,
-    @InjectModel(Question.name)
-    private readonly questionModel: Model<QuestionDocument>,
+    @InjectRepository(Exam)
+    private readonly examRepo: Repository<Exam>,
+    @InjectRepository(Question)
+    private readonly questionRepo: Repository<Question>,
   ) {}
 
-  // Manual mode: if you ever want to pass explicit questionIds
   async create(createExamDto: CreateExamDto) {
-    const { title, questionIds } = createExamDto as any;
+    const { title, questionIds, lang } = createExamDto as CreateExamDto & {
+      questionIds?: number[];
+      lang?: string;
+    };
 
-    const exam = new this.examModel({
+    const exam = this.examRepo.create({
       title,
-      questions: (questionIds ?? []).map((id) => new Types.ObjectId(id as any)),
+      questionIds: questionIds ?? [],
+      lang: lang ?? 'ka',
     });
 
-    return exam.save();
+    return this.examRepo.save(exam);
   }
 
-  // Generate exam by random/subject/category, no direct questionIds needed
   async generateExam(options: GenerateExamOptions) {
     const {
       lang,
@@ -50,79 +50,93 @@ export class ExamsService {
       allSubjects,
     } = options;
 
-    const match: Record<string, any> = { lang };
+    const qb = this.questionRepo.createQueryBuilder('q');
+    applyQuestionFilters(qb, 'q', {
+      lang,
+      subjects,
+      categories,
+      allSubjects,
+    });
+    const questions = await qb.orderBy('RANDOM()').take(count).getMany();
 
-    if (categories?.length) {
-      match.categories = { $in: categories };
-    }
-
-    if (!allSubjects && subjects?.length) {
-      match.subject = { $in: subjects };
-    }
-
-    const pipeline: any[] = [{ $match: match }];
-
-    pipeline.push({ $sample: { size: count } });
-
-    const questions = await this.questionModel.aggregate(pipeline).exec();
-
-    const exam = new this.examModel({
+    const exam = this.examRepo.create({
       title: title ?? 'Generated exam',
-      questions: questions.map((q: any) => new Types.ObjectId(q._id)),
+      lang,
+      questionIds: questions.map((q) => q.id),
     });
 
-    const saved = await exam.save();
-    return saved.populate('questions');
+    const saved = await this.examRepo.save(exam);
+    return { ...saved, questions };
   }
 
   async findAll() {
-    return this.examModel.find().populate('questions').exec();
+    const exams = await this.examRepo.find({ order: { id: 'DESC' } });
+    return Promise.all(exams.map((exam) => this.attachQuestions(exam)));
   }
 
   async findOne(id: string) {
-    const exam = await this.examModel.findById(id).populate('questions').exec();
+    const numId = Number(id);
+    if (!Number.isFinite(numId)) {
+      throw new NotFoundException(`Exam with id "${id}" not found`);
+    }
 
+    const exam = await this.examRepo.findOne({ where: { id: numId } });
     if (!exam) {
       throw new NotFoundException(`Exam with id "${id}" not found`);
     }
 
-    return exam;
+    return this.attachQuestions(exam);
   }
 
   async update(id: string, updateExamDto: UpdateExamDto) {
-    const { title, questionIds } = updateExamDto as any;
-
-    const update: Partial<Exam> & { questions?: Types.ObjectId[] } = {};
-
-    if (typeof title === 'string') {
-      update.title = title;
+    const numId = Number(id);
+    if (!Number.isFinite(numId)) {
+      throw new NotFoundException(`Exam with id "${id}" not found`);
     }
 
-    if (questionIds) {
-      update.questions = questionIds.map(
-        (qid) => new Types.ObjectId(qid as any),
-      );
-    }
+    const { title, questionIds, lang } = updateExamDto as UpdateExamDto & {
+      questionIds?: number[];
+      lang?: string;
+    };
 
-    const exam = await this.examModel
-      .findByIdAndUpdate(id, update, { new: true })
-      .populate('questions')
-      .exec();
-
+    const exam = await this.examRepo.findOne({ where: { id: numId } });
     if (!exam) {
       throw new NotFoundException(`Exam with id "${id}" not found`);
     }
 
-    return exam;
+    if (typeof title === 'string') exam.title = title;
+    if (questionIds) exam.questionIds = questionIds;
+    if (lang) exam.lang = lang;
+
+    const saved = await this.examRepo.save(exam);
+    return this.attachQuestions(saved);
   }
 
   async remove(id: string) {
-    const res = await this.examModel.findByIdAndDelete(id).exec();
+    const numId = Number(id);
+    if (!Number.isFinite(numId)) {
+      throw new NotFoundException(`Exam with id "${id}" not found`);
+    }
 
-    if (!res) {
+    const res = await this.examRepo.delete({ id: numId });
+    if (!res.affected) {
       throw new NotFoundException(`Exam with id "${id}" not found`);
     }
 
     return { deleted: true };
+  }
+
+  private async attachQuestions(exam: Exam) {
+    if (!exam.questionIds.length) {
+      return { ...exam, questions: [] };
+    }
+
+    const questions = await this.questionRepo
+      .createQueryBuilder('q')
+      .where('q.lang = :lang', { lang: exam.lang })
+      .andWhere('q.id IN (:...ids)', { ids: exam.questionIds })
+      .getMany();
+
+    return { ...exam, questions };
   }
 }

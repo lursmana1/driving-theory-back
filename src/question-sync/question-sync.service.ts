@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { Question, QuestionDocument } from '../questions/schemas/question.schema';
+import { Question } from '../questions/entities/question.entity';
 
 /** 5s between IDs ≈ 12 RPM — under 15 RPM free-tier limit */
 const DELAY_MS = 5000;
@@ -24,7 +24,8 @@ function isRetryable(status: number): boolean {
 }
 
 function getRetryDelayMs(err: unknown): number {
-  const details = (err as { errorDetails?: Array<{ retryDelay?: string }> })?.errorDetails;
+  const details = (err as { errorDetails?: Array<{ retryDelay?: string }> })
+    ?.errorDetails;
   if (details) {
     for (const d of details) {
       const s = d?.retryDelay;
@@ -57,6 +58,17 @@ export interface SyncOptions {
 
 /** One API call per ID — Gemini returns all languages */
 export interface GeminiResponse {
+  ka_explained: string;
+  ru_question: string;
+  en_question: string;
+  ru_answer_1: string;
+  ru_answer_2: string;
+  ru_answer_3: string;
+  ru_answer_4: string;
+  en_answer_1: string;
+  en_answer_2: string;
+  en_answer_3: string;
+  en_answer_4: string;
   ru_explained: string;
   en_explained: string;
   ka_tutor: string;
@@ -64,12 +76,47 @@ export interface GeminiResponse {
   en_tutor: string;
 }
 
+const PLACEHOLDER_EXPLANATION_PREFIX = 'განმარტება მალე დაემატება';
+const PLACEHOLDER_EXPLANATION_KEYWORD = 'იხილე კანონი საგზაო მოძრაობის შესახებ';
+
+function isPlaceholderExplanation(text?: string): boolean {
+  if (!text) return true;
+  const normalized = text.trim().toLowerCase();
+  return (
+    // Covers variants like:
+    // - "განმარტება მალე დაემატება"
+    // - "განმარტება მალე დაემატება..."
+    // - "განმარტება მალე დაემატება …"
+    normalized.includes(PLACEHOLDER_EXPLANATION_PREFIX.toLowerCase()) ||
+    normalized.includes(PLACEHOLDER_EXPLANATION_KEYWORD.toLowerCase())
+  );
+}
+
+type QuestionRow = {
+  id: number;
+  lang: string;
+  question?: string;
+  question_explained?: string;
+  correct_answer?: string;
+  answer_1?: string;
+  answer_2?: string;
+  answer_3?: string;
+  answer_4?: string;
+  subject?: number;
+  categories?: number[];
+  hasImg?: number;
+  img?: string;
+  audio?: string;
+  ai_tutor?: string;
+};
+
 @Injectable()
 export class QuestionSyncService {
   private genAI: GoogleGenerativeAI | null = null;
 
   constructor(
-    @InjectModel(Question.name) private questionModel: Model<QuestionDocument>,
+    @InjectRepository(Question)
+    private readonly questionRepo: Repository<Question>,
     private config: ConfigService,
   ) {
     const apiKey = this.config.get<string>('GEMINI_API_KEY');
@@ -116,13 +163,18 @@ export class QuestionSyncService {
     }
   }
 
-  async runSync(options: SyncOptions = {}): Promise<{ processed: number; errors: number }> {
+  async runSync(
+    options: SyncOptions = {},
+  ): Promise<{ processed: number; errors: number }> {
     const limit = options.limit ?? 5;
     const offset = options.offset ?? 0;
 
-    const ids = await this.questionModel
-      .distinct('id')
-      .then((arr) => arr.sort((a, b) => a - b) as number[]);
+    const idRows = await this.questionRepo
+      .createQueryBuilder('q')
+      .select('DISTINCT q.id', 'id')
+      .orderBy('q.id', 'ASC')
+      .getRawMany<{ id: string }>();
+    const ids = idRows.map((r) => Number(r.id));
 
     const totalIds = ids.length;
     const slice = ids.slice(offset, offset + limit);
@@ -137,42 +189,56 @@ export class QuestionSyncService {
       const displayTotal = Math.min(offset + limit, totalIds);
 
       try {
-        const rows = await this.questionModel
-          .find({ id })
-          .lean()
-          .exec();
+        const rows = await this.questionRepo.find({ where: { id } });
 
         const byLang = Object.fromEntries(
           rows.map((r) => [r.lang, r]),
-        ) as Record<string, { question: string; question_explained?: string; correct_answer?: string }>;
+        ) as Record<string, QuestionRow>;
 
         const ka = byLang.ka;
         const ru = byLang.ru;
         const en = byLang.en;
 
-        if (!ka || !ru || !en) {
-          console.warn(`[ID ${id}] Skipping: missing ka, ru, or en row`);
+        if (!ka) {
+          console.warn(`[ID ${id}] Skipping: missing ka row`);
           continue;
         }
 
-        if (hasAiTutor(ka) && hasAiTutor(ru) && hasAiTutor(en)) {
-          console.log(`[${globalIndex}/${displayTotal}] Skipping ID ${id} (ai_tutor already set for ka, ru, en)`);
+        const kaExplainedOk = !isPlaceholderExplanation(ka.question_explained);
+        const ruExplainedOk = ru
+          ? !isPlaceholderExplanation(ru.question_explained)
+          : false;
+        const enExplainedOk = en
+          ? !isPlaceholderExplanation(en.question_explained)
+          : false;
+
+        if (
+          hasAiTutor(ka) &&
+          ru &&
+          en &&
+          hasAiTutor(ru) &&
+          hasAiTutor(en) &&
+          kaExplainedOk &&
+          ruExplainedOk &&
+          enExplainedOk
+        ) {
+          console.log(
+            `[${globalIndex}/${displayTotal}] Skipping ID ${id} (ai_tutor already set for ka, ru, en)`,
+          );
           processed++;
           continue;
         }
 
         const ka_explanation = (ka.question_explained || '').trim();
         const ka_question = ka.question || '';
-        const correct_answer = ka.correct_answer || ru.correct_answer || en.correct_answer || '';
-
-        if (!ka_explanation) {
-          console.warn(`[ID ${id}] Skipping: ka.question_explained is empty (master source required)`);
-          continue;
-        }
+        const correct_answer =
+          ka.correct_answer || ru?.correct_answer || en?.correct_answer || '';
 
         const prompt = `You are a Georgian driving instructor. I will provide a Georgian driving exam question and its official legal explanation.
 
-Generate a formal legal explanation in English and Russian for the question_explained column (translate from the Georgian law text).
+Translate the Georgian question and answers into Russian and English.
+
+Generate a formal legal explanation in Georgian, Russian, and English for the question_explained column.
 
 Generate a friendly, simplified "AI Tutor" explanation in Georgian, Russian, and English for the ai_tutor column.
 
@@ -182,12 +248,18 @@ Focus on WHY the correct answer (index: ${correct_answer}) is right.
 
 Source Question (KA): ${ka_question}
 
-Source Law (KA): ${ka_explanation}
+Source Answers (KA):
+1) ${ka.answer_1 || ''}
+2) ${ka.answer_2 || ''}
+3) ${ka.answer_3 || ''}
+4) ${ka.answer_4 || ''}
+
+Source Law (KA): ${ka_explanation || 'No reliable legal explanation provided. Reconstruct a legally accurate explanation from the question and answer choices.'}
 
 Correct Answer Index: ${correct_answer}
 
 Return valid JSON only, no markdown:
-{ "ru_explained": "...", "en_explained": "...", "ka_tutor": "...", "ru_tutor": "...", "en_tutor": "..." }`;
+{ "ru_question": "...", "en_question": "...", "ru_answer_1": "...", "ru_answer_2": "...", "ru_answer_3": "...", "ru_answer_4": "...", "en_answer_1": "...", "en_answer_2": "...", "en_answer_3": "...", "en_answer_4": "...", "ka_explained": "...", "ru_explained": "...", "en_explained": "...", "ka_tutor": "...", "ru_tutor": "...", "en_tutor": "..." }`;
 
         let result: GeminiResponse | null = null;
         let lastErr: unknown = null;
@@ -204,7 +276,9 @@ Return valid JSON only, no markdown:
             const status = (err as { status?: number })?.status;
             if (attempt < MAX_RETRIES && isRetryable(status ?? 0)) {
               const waitMs = getRetryDelayMs(err);
-              console.warn(`[${globalIndex}/${displayTotal}] ID ${id} ${status === 429 ? 'rate limited' : '503'}, retry in ${Math.round(waitMs / 1000)}s (attempt ${attempt + 1}/${MAX_RETRIES})`);
+              console.warn(
+                `[${globalIndex}/${displayTotal}] ID ${id} ${status === 429 ? 'rate limited' : '503'}, retry in ${Math.round(waitMs / 1000)}s (attempt ${attempt + 1}/${MAX_RETRIES})`,
+              );
               await this.sleep(waitMs);
             } else {
               throw err;
@@ -214,23 +288,57 @@ Return valid JSON only, no markdown:
 
         if (!result) throw lastErr;
 
-        const updates: Array<{ id: number; lang: string; data: Record<string, string> }> = [
-          { id, lang: 'ka', data: { ai_tutor: result.ka_tutor } },
-          {
-            id,
-            lang: 'ru',
-            data: { question_explained: result.ru_explained, ai_tutor: result.ru_tutor },
-          },
-          {
-            id,
-            lang: 'en',
-            data: { question_explained: result.en_explained, ai_tutor: result.en_tutor },
-          },
-        ];
-
-        for (const { id: qId, lang, data } of updates) {
-          await this.questionModel.updateOne({ id: qId, lang }, { $set: data }).exec();
+        // Preserve existing Georgian legal explanation; only fill it if placeholder/empty
+        const kaUpdate: Record<string, string> = { ai_tutor: result.ka_tutor };
+        if (isPlaceholderExplanation(ka.question_explained)) {
+          kaUpdate.question_explained = result.ka_explained;
         }
+        await this.questionRepo.update({ id, lang: 'ka' }, kaUpdate);
+
+        const baseInsert = {
+          id,
+          correct_answer: ka.correct_answer || '',
+          hasImg: ka.hasImg ?? 0,
+          img: ka.img || '',
+          subject: ka.subject ?? null,
+          categories: ka.categories || [],
+          audio: ka.audio || '',
+          question: ka.question || '',
+          answer_1: ka.answer_1 || '',
+          answer_2: ka.answer_2 || '',
+          answer_3: ka.answer_3 || '',
+          answer_4: ka.answer_4 || '',
+        };
+
+        await this.questionRepo.upsert(
+          {
+            ...baseInsert,
+            lang: 'ru',
+            question: result.ru_question,
+            answer_1: result.ru_answer_1,
+            answer_2: result.ru_answer_2,
+            answer_3: result.ru_answer_3,
+            answer_4: result.ru_answer_4,
+            question_explained: result.ru_explained,
+            ai_tutor: result.ru_tutor,
+          },
+          { conflictPaths: ['id', 'lang'] },
+        );
+
+        await this.questionRepo.upsert(
+          {
+            ...baseInsert,
+            lang: 'en',
+            question: result.en_question,
+            answer_1: result.en_answer_1,
+            answer_2: result.en_answer_2,
+            answer_3: result.en_answer_3,
+            answer_4: result.en_answer_4,
+            question_explained: result.en_explained,
+            ai_tutor: result.en_tutor,
+          },
+          { conflictPaths: ['id', 'lang'] },
+        );
 
         processed++;
         console.log(`[${globalIndex}/${displayTotal}] Processed ID ${id}`);
@@ -244,7 +352,10 @@ Return valid JSON only, no markdown:
         }
         errors++;
         // DB not updated on failure — this ID can be retried after restart
-        console.error(`[${globalIndex}/${displayTotal}] Error on ID ${id}:`, err);
+        console.error(
+          `[${globalIndex}/${displayTotal}] Error on ID ${id}:`,
+          err,
+        );
       }
 
       if (i < toProcess - 1) {
