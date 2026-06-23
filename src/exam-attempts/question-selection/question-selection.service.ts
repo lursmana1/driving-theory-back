@@ -2,8 +2,8 @@ import { Injectable } from '@nestjs/common';
 import {
   MIN_ANSWERS_FOR_PERSONALIZATION,
   MIN_ANSWERS_FOR_FULL_PERSONALIZATION,
-  DEFAULT_QUESTION_COUNT,
 } from '../../common/constants/exam.constants.js';
+import { resolveGeorgianExamRule } from '../../common/utils/georgian-exam-rules.util.js';
 import type { SelectionOptions } from './selection.types.js';
 import { FULL_RATIOS, LIGHT_RATIOS } from './selection.types.js';
 import { WeaknessService } from './weakness.service.js';
@@ -24,7 +24,11 @@ export class QuestionSelectionService {
   ) {}
 
   async selectQuestions(options: SelectionOptions): Promise<number[]> {
-    const count = options.count ?? DEFAULT_QUESTION_COUNT;
+    const examRule = resolveGeorgianExamRule({
+      categories: options.categories,
+      count: options.count,
+    });
+    const count = examRule.questionCount;
     const lang = options.lang ?? DEFAULT_LANG;
     const match = this.samplingService.buildMatchFilter(
       lang,

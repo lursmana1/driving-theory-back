@@ -2,6 +2,19 @@ import 'dotenv/config';
 import { DataSource } from 'typeorm';
 import { Category } from '../src/categories/entities/category.entity';
 
+const CATEGORY_META: Record<number, { name: string; iconKey: string }> = {
+  0: { name: 'AM', iconKey: 'am' },
+  1: { name: 'A', iconKey: 'a' },
+  2: { name: 'B', iconKey: 'b' },
+  3: { name: 'C', iconKey: 'c' },
+  4: { name: 'C1', iconKey: 'c1' },
+  5: { name: 'D', iconKey: 'd' },
+  6: { name: 'D1', iconKey: 'd1' },
+  7: { name: 'Military', iconKey: 'military' },
+  8: { name: 'Tram', iconKey: 'tram' },
+  9: { name: 'T/S', iconKey: 'ts' },
+};
+
 function pgDataSource(): DataSource {
   return new DataSource({
     type: 'postgres',
@@ -63,8 +76,8 @@ async function main() {
 
     await repo.save({
       id: Number(r.id),
-      name: `Category ${r.id}`,
-      iconKey: null,
+      name: CATEGORY_META[Number(r.id)]?.name ?? `Category ${r.id}`,
+      iconKey: CATEGORY_META[Number(r.id)]?.iconKey ?? null,
       questionsCount: Number(r.questionsCount),
       subjectCount: Number(r.subjectCount),
       subjects,

@@ -24,11 +24,44 @@ import {
   MAX_HISTORY_PAGE_SIZE,
   DEFAULT_HISTORY_PAGE_SIZE,
 } from '../common/constants/exam.constants.js';
+import {
+  GEORGIAN_EXAM_RULES_BY_CATEGORY,
+  resolveGeorgianExamRule,
+} from '../common/utils/georgian-exam-rules.util.js';
 
 @Controller('exam-attempts')
 @UseGuards(JwtAuthGuard)
 export class ExamAttemptsController {
   constructor(private readonly attemptsService: ExamAttemptsService) {}
+
+  @Get('rules')
+  getExamRules(@Query('category') category?: string) {
+    if (category == null || category.trim() === '') {
+      return Object.entries(GEORGIAN_EXAM_RULES_BY_CATEGORY).map(
+        ([id, rule]) => ({
+          categoryId: Number(id),
+          questionCount: rule.questionCount,
+          minCorrectToPass: rule.minCorrectToPass,
+          maxWrongAnswers: rule.questionCount - rule.minCorrectToPass,
+          durationMinutes: 30,
+        }),
+      );
+    }
+
+    const categoryId = parseInt(category, 10);
+    if (!Number.isFinite(categoryId)) {
+      throw new BadRequestException('category must be a number');
+    }
+
+    const rule = resolveGeorgianExamRule({ categories: [categoryId] });
+    return {
+      categoryId: rule.categoryId,
+      questionCount: rule.questionCount,
+      minCorrectToPass: rule.minCorrectToPass,
+      maxWrongAnswers: rule.questionCount - rule.minCorrectToPass,
+      durationMinutes: 30,
+    };
+  }
 
   @Post('start')
   start(

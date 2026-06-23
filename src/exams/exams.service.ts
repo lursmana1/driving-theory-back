@@ -6,6 +6,7 @@ import { UpdateExamDto } from './dto/update-exam.dto';
 import { Exam } from './entities/exam.entity';
 import { Question } from '../questions/entities/question.entity';
 import { applyQuestionFilters } from '../questions/question-query.util';
+import { resolveGeorgianExamRule } from '../common/utils/georgian-exam-rules.util';
 
 interface GenerateExamOptions {
   lang: string;
@@ -41,14 +42,12 @@ export class ExamsService {
   }
 
   async generateExam(options: GenerateExamOptions) {
-    const {
-      lang,
-      title,
-      subjects,
+    const { lang, title, subjects, categories, count, allSubjects } = options;
+
+    const examRule = resolveGeorgianExamRule({
       categories,
-      count = 30,
-      allSubjects,
-    } = options;
+      count,
+    });
 
     const qb = this.questionRepo.createQueryBuilder('q');
     applyQuestionFilters(qb, 'q', {
@@ -57,7 +56,10 @@ export class ExamsService {
       categories,
       allSubjects,
     });
-    const questions = await qb.orderBy('RANDOM()').take(count).getMany();
+    const questions = await qb
+      .orderBy('RANDOM()')
+      .take(examRule.questionCount)
+      .getMany();
 
     const exam = this.examRepo.create({
       title: title ?? 'Generated exam',

@@ -15,8 +15,11 @@ import {
   MAX_HISTORY_PAGE_SIZE,
   DEFAULT_HISTORY_PAGE_SIZE,
   EXAM_DURATION_MINUTES,
-  EXAM_PASS_PERCENT,
 } from '../common/constants/exam.constants.js';
+import {
+  isExamPassed,
+  resolveGeorgianExamRule,
+} from '../common/utils/georgian-exam-rules.util.js';
 import type {
   StartAttemptOptions,
   AttemptSummary,
@@ -39,17 +42,32 @@ export class ExamAttemptsService {
   async startAttempt(
     userId: number,
     options: StartAttemptOptions,
-  ): Promise<{ attemptId: number; endDate: Date; questions: unknown[] }> {
+  ): Promise<{
+    attemptId: number;
+    endDate: Date;
+    questions: unknown[];
+    questionCount: number;
+    minCorrectToPass: number;
+    categoryId: number | null;
+  }> {
     const lang = options.lang ?? DEFAULT_LANG;
+    const examRule = resolveGeorgianExamRule({
+      categories: options.categories,
+      count: options.count,
+    });
     const questionIds = await this.selectionService.selectQuestions({
       ...options,
       userId,
+      count: examRule.questionCount,
     });
 
     const attempt = this.attemptRepo.create({
       userId,
       questionIds,
       lang,
+      minCorrectToPass: examRule.minCorrectToPass,
+      categories: options.categories ?? [],
+      subjects: options.subjects ?? [],
     });
     const saved = await this.attemptRepo.save(attempt);
 
@@ -60,7 +78,14 @@ export class ExamAttemptsService {
 
     const questions = await this.findQuestionsByIds(questionIds, lang);
 
-    return { attemptId: saved.id, endDate, questions };
+    return {
+      attemptId: saved.id,
+      endDate,
+      questions,
+      questionCount: examRule.questionCount,
+      minCorrectToPass: examRule.minCorrectToPass,
+      categoryId: examRule.categoryId,
+    };
   }
 
   async submitAnswer(
@@ -100,8 +125,7 @@ export class ExamAttemptsService {
       const correctCount = updatedAttempt.answers.filter(
         (a) => a.correct,
       ).length;
-      const passed =
-        correctCount / updatedAttempt.questionIds.length >= EXAM_PASS_PERCENT;
+      const passed = this.evaluatePass(updatedAttempt, correctCount);
       const completedAt = new Date();
       const durationSeconds = Math.round(
         (completedAt.getTime() - updatedAttempt.createdAt.getTime()) / 1000,
@@ -130,8 +154,7 @@ export class ExamAttemptsService {
     }
 
     const correctCount = attempt.answers.filter((a) => a.correct).length;
-    const total = attempt.questionIds.length;
-    const passed = total > 0 && correctCount / total >= EXAM_PASS_PERCENT;
+    const passed = this.evaluatePass(attempt, correctCount);
     const completedAt = new Date();
     const durationSeconds = Math.round(
       (completedAt.getTime() - attempt.createdAt.getTime()) / 1000,
@@ -192,6 +215,9 @@ export class ExamAttemptsService {
       completedAt: attempt.completedAt,
       passed: attempt.passed,
       durationSeconds: attempt.durationSeconds,
+      minCorrectToPass: attempt.minCorrectToPass,
+      categories: attempt.categories,
+      subjects: attempt.subjects,
     };
   }
 
@@ -250,12 +276,26 @@ export class ExamAttemptsService {
     }
   }
 
+  private evaluatePass(attempt: ExamAttempt, correctCount: number): boolean {
+    const threshold = attempt.minCorrectToPass;
+    if (threshold != null) {
+      return isExamPassed(correctCount, threshold);
+    }
+
+    const fallback = resolveGeorgianExamRule({
+      categories: attempt.categories,
+      count: attempt.questionIds.length,
+    });
+    return isExamPassed(correctCount, fallback.minCorrectToPass);
+  }
+
   private toAttemptSummary(attempt: ExamAttempt): AttemptSummary {
     return {
       id: attempt.id,
       questionCount: attempt.questionIds.length,
       answeredCount: attempt.answers.length,
       correctCount: attempt.answers.filter((x) => x.correct).length,
+      minCorrectToPass: attempt.minCorrectToPass,
       createdAt: attempt.createdAt,
       endDate: attempt.endDate,
       completedAt: attempt.completedAt,

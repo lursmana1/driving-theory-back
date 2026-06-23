@@ -11,6 +11,7 @@ export interface AttemptSummary {
   questionCount: number;
   answeredCount: number;
   correctCount: number;
+  minCorrectToPass: number | null;
   createdAt: Date;
   endDate: Date | null;
   completedAt: Date | null;

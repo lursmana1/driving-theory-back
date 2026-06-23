@@ -39,6 +39,16 @@ export class ExamAttempt {
   @Column({ type: 'int', nullable: true })
   durationSeconds: number | null;
 
+  /** Pass threshold frozen at attempt start (Georgian exam rules). */
+  @Column({ type: 'int', nullable: true })
+  minCorrectToPass: number | null;
+
+  @Column({ type: 'jsonb', default: () => "'[]'" })
+  categories: number[];
+
+  @Column({ type: 'jsonb', default: () => "'[]'" })
+  subjects: number[];
+
   @ManyToOne(() => User, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'userId' })
   user: User;
