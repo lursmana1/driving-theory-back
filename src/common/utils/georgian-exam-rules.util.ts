@@ -66,6 +66,26 @@ export function isExamPassed(
   return correctCount >= minCorrectToPass;
 }
 
+export class InsufficientQuestionsError extends Error {
+  constructor(
+    readonly available: number,
+    readonly requiredCount: number,
+  ) {
+    super('Insufficient questions');
+    this.name = 'InsufficientQuestionsError';
+  }
+}
+
+/** Throws when the filtered pool cannot fill an exam ticket for the given rule. */
+export function assertSufficientQuestionPool(
+  available: number,
+  rule: Pick<GeorgianExamRule, 'questionCount'>,
+): void {
+  if (available < rule.questionCount) {
+    throw new InsufficientQuestionsError(available, rule.questionCount);
+  }
+}
+
 function pickPrimaryCategoryId(
   categories: number[] | undefined,
 ): number | null {

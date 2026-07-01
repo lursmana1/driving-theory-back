@@ -1,12 +1,16 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CreateExamDto } from './dto/create-exam.dto';
 import { UpdateExamDto } from './dto/update-exam.dto';
 import { Exam } from './entities/exam.entity';
 import { Question } from '../questions/entities/question.entity';
+import {
+  resolveGeorgianExamRule,
+  assertSufficientQuestionPool,
+  InsufficientQuestionsError,
+} from '../common/utils/georgian-exam-rules.util';
 import { applyQuestionFilters } from '../questions/question-query.util';
-import { resolveGeorgianExamRule } from '../common/utils/georgian-exam-rules.util';
 
 interface GenerateExamOptions {
   lang: string;
@@ -49,13 +53,23 @@ export class ExamsService {
       count,
     });
 
+    const filter = { lang, subjects, categories, allSubjects };
+    if (categories?.length) {
+      const countQb = this.questionRepo.createQueryBuilder('q');
+      applyQuestionFilters(countQb, 'q', filter);
+      const available = await countQb.getCount();
+      try {
+        assertSufficientQuestionPool(available, examRule);
+      } catch (err) {
+        if (err instanceof InsufficientQuestionsError) {
+          throw new BadRequestException(err.message);
+        }
+        throw err;
+      }
+    }
+
     const qb = this.questionRepo.createQueryBuilder('q');
-    applyQuestionFilters(qb, 'q', {
-      lang,
-      subjects,
-      categories,
-      allSubjects,
-    });
+    applyQuestionFilters(qb, 'q', filter);
     const questions = await qb
       .orderBy('RANDOM()')
       .take(examRule.questionCount)

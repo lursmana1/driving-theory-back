@@ -1,6 +1,7 @@
 import {
   DEFAULT_GEORGIAN_EXAM_RULE,
   GEORGIAN_EXAM_RULES_BY_CATEGORY,
+  assertSufficientQuestionPool,
   isExamPassed,
   resolveGeorgianExamRule,
 } from './georgian-exam-rules.util';
@@ -48,6 +49,20 @@ describe('isExamPassed', () => {
   it('passes at exact threshold', () => {
     expect(isExamPassed(18, 18)).toBe(true);
     expect(isExamPassed(17, 18)).toBe(false);
+  });
+});
+
+describe('assertSufficientQuestionPool', () => {
+  it('passes when pool is large enough', () => {
+    expect(() =>
+      assertSufficientQuestionPool(318, { questionCount: 20 }),
+    ).not.toThrow();
+  });
+
+  it('throws when pool is too small', () => {
+    expect(() =>
+      assertSufficientQuestionPool(15, { questionCount: 20 }),
+    ).toThrow('Insufficient questions');
   });
 });
 

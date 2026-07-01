@@ -1,9 +1,13 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import {
   MIN_ANSWERS_FOR_PERSONALIZATION,
   MIN_ANSWERS_FOR_FULL_PERSONALIZATION,
 } from '../../common/constants/exam.constants.js';
-import { resolveGeorgianExamRule } from '../../common/utils/georgian-exam-rules.util.js';
+import {
+  resolveGeorgianExamRule,
+  assertSufficientQuestionPool,
+  InsufficientQuestionsError,
+} from '../../common/utils/georgian-exam-rules.util.js';
 import type { SelectionOptions } from './selection.types.js';
 import { FULL_RATIOS, LIGHT_RATIOS } from './selection.types.js';
 import { WeaknessService } from './weakness.service.js';
@@ -36,6 +40,18 @@ export class QuestionSelectionService {
       options.categories,
       options.allSubjects,
     );
+
+    if (options.categories?.length) {
+      const available = await this.samplingService.countMatching(match);
+      try {
+        assertSufficientQuestionPool(available, examRule);
+      } catch (err) {
+        if (err instanceof InsufficientQuestionsError) {
+          throw new BadRequestException(err.message);
+        }
+        throw err;
+      }
+    }
 
     const totalAnswers = await this.weaknessService.getTotalAnswerCount(
       options.userId,

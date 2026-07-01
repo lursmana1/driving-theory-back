@@ -1,98 +1,219 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# nneesstt
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Backend API for a Georgian driving license theory exam app. Supports all license categories (AM, A, B, C, C1, D, D1, and more), multilingual questions (Georgian, Russian, English), personalized exam selection, and user weakness statistics.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+Built with **NestJS** and **PostgreSQL** (TypeORM).
 
-## Description
+## Features
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+- **5,400+ questions** across 3 languages (`ka`, `ru`, `en`)
+- **10 license categories** with official exam rules (question count and pass threshold per category)
+- **Exam simulator** with timed attempts, per-answer scoring, and pass/fail evaluation
+- **Personalized question selection** based on user history (weak questions and weak subjects)
+- **User statistics** — top wrong questions and weakest subjects
+- **Auth** — JWT + Google OAuth
+- **Blogs, leaderboard, file uploads** (S3)
 
-## Project setup
+## Tech stack
 
-```bash
-$ npm install
-```
+| Layer | Technology |
+|-------|------------|
+| Framework | NestJS 11 |
+| Database | PostgreSQL (Neon / Docker) |
+| ORM | TypeORM |
+| Auth | Passport (JWT, Google OAuth) |
+| Storage | AWS S3 |
 
-## Compile and run the project
+## Getting started
 
-```bash
-# development
-$ npm run start
+### Prerequisites
 
-# watch mode
-$ npm run start:dev
+- Node.js 20+
+- PostgreSQL 16+ (local Docker, or a hosted provider like [Neon](https://neon.tech))
 
-# production mode
-$ npm run start:prod
-```
-
-## Run tests
+### Install
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+git clone <repo-url>
+cd nneesstt
+npm install
+cp .env.example .env
+# Edit .env with your database URL and secrets
 ```
+
+### Run locally
+
+```bash
+npm run start:dev
+```
+
+API listens on `http://localhost:3000` by default (`PORT` env var overrides).
+
+### Verify database connection
+
+```bash
+npm run db:test-pg
+```
+
+### Seed categories (first-time setup)
+
+```bash
+npm run db:seed-categories
+```
+
+## Environment variables
+
+Copy `.env.example` and configure:
+
+| Variable | Description |
+|----------|-------------|
+| `DB_TYPE` | `postgres` |
+| `DATABASE_URL` | PostgreSQL connection string (recommended for Neon/Render) |
+| `DB_SYNCHRONIZE` | `false` in production |
+| `JWT_SECRET` | Secret for signing JWT tokens |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google OAuth |
+| `GOOGLE_CALLBACK_URL` | OAuth redirect URL |
+| `FRONTEND_ORIGIN` | Allowed CORS origins (comma-separated) |
+| `AWS_*` | S3 bucket for images/audio |
+
+Local fallback when `DATABASE_URL` is unset: `PG_HOST`, `PG_PORT`, `PG_USERNAME`, `PG_PASSWORD`, `PG_DATABASE`.
+
+## API overview
+
+All routes are at the root (no global prefix). Protected routes require:
+
+```
+Authorization: Bearer <jwt>
+```
+
+### Public
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/categories` | List license categories |
+| `GET` | `/categories/:id` | Category detail with subjects |
+| `GET` | `/questions?lang=ka&category=0&page=1&size=20` | Paginated questions |
+| `GET` | `/questions/random?lang=ka&count=10&category=0` | Random practice set |
+| `GET` | `/questions/:id?lang=ka` | Single question |
+| `POST` | `/auth/register` | Register |
+| `POST` | `/auth/login` | Login |
+| `GET` | `/auth/google` | Google OAuth |
+
+Language: `?lang=ka|ru|en` or `Accept-Language` header.
+
+### Exam attempts (authenticated)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/exam-attempts/rules` | All category exam rules |
+| `GET` | `/exam-attempts/rules?category=0` | Rules for one category |
+| `POST` | `/exam-attempts/start?categories=0&lang=ka` | Start exam (personalized selection) |
+| `POST` | `/exam-attempts/:id/answer` | Submit answer `{ questionId, chosenAnswer }` |
+| `POST` | `/exam-attempts/:id/finish` | Finish attempt early |
+| `GET` | `/exam-attempts` | Attempt history (`?page=1&size=10`) |
+| `GET` | `/exam-attempts/:id` | Attempt detail |
+| `GET` | `/exam-attempts/stats?limit=1000` | Raw answer log |
+
+**Start exam query params:** `categories`, `subjects`, `lang`, `allSubjects`.
+
+**Start response** includes `questionCount`, `minCorrectToPass`, and `categoryId` — use these on the frontend instead of hardcoded values.
+
+Returns `400 Insufficient questions` when the filtered pool is smaller than the required ticket size.
+
+### User statistics (authenticated)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/user-stats/weak-questions` | Top 10 most-wrong questions |
+| `GET` | `/user-stats/weak-subjects` | Weakest subjects by correctness rate |
+
+## Exam rules (Georgia, 2026)
+
+Rules follow [sa.gov.ge](https://sa.gov.ge/p/driver-license/theoretical-test). Exam duration is **30 minutes** for all categories.
+
+| Category | ID | Questions | Min correct to pass |
+|----------|----|-----------|---------------------|
+| AM | 0 | 20 | 18 |
+| A (A1/A2) | 1 | 30 | 27 |
+| B (B1) | 2 | 30 | 25 |
+| C | 3 | 40 | 36 |
+| C1 | 4 | 35 | 32 |
+| D | 5 | 40 | 36 |
+| D1 | 6 | 35 | 32 |
+| Military | 7 | 30 | 27 |
+| Tram | 8 | 30 | 27 |
+| T / S | 9 | 30 | 27 |
+
+Implemented in `src/common/utils/georgian-exam-rules.util.ts`.
+
+## Personalized question selection
+
+When a user starts an exam, questions are selected based on answer history:
+
+| Total answers | Random | Mistakes | Success |
+|---------------|--------|----------|---------|
+| &lt; 100 | 100% | 0% | 0% |
+| 100–499 | 70% | 25% | 5% |
+| 500+ | 50% | 40% | 10% |
+
+See [docs/QUESTION-SELECTION.md](docs/QUESTION-SELECTION.md) for details.
+
+## Scripts
+
+| Command | Purpose |
+|---------|---------|
+| `npm run build` | Production build |
+| `npm run start:prod` | Run built app |
+| `npm test` | Unit tests |
+| `npm run db:seed-categories` | Seed/update categories from questions |
+| `npm run db:verify-questions` | Verify question import |
+| `npm run db:fix-am-category-tags` | Sync `categories` array from ka → en/ru |
+| `npm run import:questions` | Import from CSV (`--ka`, `--ru`, `--en`) |
+
+Migration scripts (`db:migrate-*`) are for one-time data moves from legacy MySQL/MongoDB.
 
 ## Deployment
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+Production setup: **Render** (API) + **Neon** (PostgreSQL).
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+```env
+DB_TYPE=postgres
+DATABASE_URL=postgresql://...@...neon.tech/neondb?sslmode=require
+DB_SYNCHRONIZE=false
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+| Render setting | Value |
+|----------------|-------|
+| Build Command | `npm ci && npm run build` |
+| Start Command | `npm run start:prod` |
+| Root Directory | *(empty — repo root)* |
 
-## Resources
+Full checklist: [DEPLOY_NOTES.md](DEPLOY_NOTES.md) and [docs/DEPLOY-RENDER.md](docs/DEPLOY-RENDER.md).
 
-Check out a few resources that may come in handy when working with NestJS:
+## Project structure
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+```
+src/
+├── auth/              # JWT + Google OAuth
+├── categories/        # License categories
+├── questions/         # Question bank + filters
+├── exams/             # Generated exam tickets
+├── exam-attempts/     # Attempts, scoring, question selection
+│   └── question-selection/
+│       ├── weakness.service.ts
+│       └── question-selection.service.ts
+├── user-stats/        # Weak questions / weak subjects
+├── users/             # User accounts
+├── blogs/
+├── leaderboard/
+├── uploads/           # S3 uploads
+└── common/
+    └── utils/
+        └── georgian-exam-rules.util.ts
+scripts/               # DB migration, import, sync utilities
+docs/                  # Additional documentation
+```
 
 ## License
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+Private — see `package.json` (`UNLICENSED`).

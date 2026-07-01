@@ -29,6 +29,12 @@ export class QuestionSamplingService {
     };
   }
 
+  async countMatching(filter: QuestionFilterOpts): Promise<number> {
+    const qb = this.questionRepo.createQueryBuilder('q');
+    applyQuestionFilters(qb, 'q', filter);
+    return qb.getCount();
+  }
+
   async sampleRandom(
     filter: QuestionFilterOpts,
     limit: number,
