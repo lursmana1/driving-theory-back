@@ -1,4 +1,5 @@
-# Driving Theory Back
+# driving-theory-back
+
 
 Backend API for a Georgian driving license theory exam app. Supports all license categories (AM, A, B, C, C1, D, D1, and more), multilingual questions (Georgian, Russian, English), personalized exam selection, and user weakness statistics.
 
