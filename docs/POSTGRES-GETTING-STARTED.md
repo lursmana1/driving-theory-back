@@ -35,7 +35,7 @@ psql --version
 **SQL Shell (psql)** ან **pgAdmin** → Query Tool:
 
 ```sql
-CREATE DATABASE nneesstt;
+CREATE DATABASE driving_theory_back;
 ```
 
 ან პროექტიდან (თუ `psql` PATH-შია):
@@ -57,11 +57,11 @@ DB_HOST=localhost
 DB_PORT=5432
 DB_USERNAME=postgres
 DB_PASSWORD=YOUR_POSTGRES_PASSWORD
-DB_DATABASE=nneesstt
+DB_DATABASE=driving_theory_back
 DB_SYNCHRONIZE=true
 
 # ან ერთი URL (Neon/Supabase cloud-ისთვის):
-# DATABASE_URL=postgresql://user:pass@host:5432/nneesstt?sslmode=require
+# DATABASE_URL=postgresql://user:pass@host:5432/driving_theory_back?sslmode=require
 # DATABASE_SSL=true
 ```
 
@@ -81,7 +81,7 @@ npm run db:test-pg
 
 ```
 Connected successfully.
-  database: nneesstt
+  database: driving_theory_back
 ```
 
 ---
@@ -105,7 +105,7 @@ npm run db:migrate-questions-to-pg
 
 | ბრძანება | რას აკეთებს |
 |----------|-------------|
-| `psql -U postgres -d nneesstt` | ტერმინალიდან DB-ში შესვლა |
+| `psql -U postgres -d driving_theory_back` | ტერმინალიდან DB-ში შესვლა |
 | `\dt` | ცხრილების სია |
 | `SELECT lang, COUNT(*) FROM questions GROUP BY lang;` | კითხვების რაოდენობა ენებით |
 | `npm run db:test-pg` | კავშირის შემოწმება |

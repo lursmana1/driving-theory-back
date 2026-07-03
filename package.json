@@ -1,12 +1,13 @@
 {
-  "name": "nneesstt",
+  "name": "driving-theory-back",
   "version": "0.0.1",
-  "description": "",
+  "description": "Georgian driving license theory exam API (NestJS + PostgreSQL)",
   "author": "",
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
-    "build": "rimraf dist tsconfig.build.tsbuildinfo && tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json",
+    "build:clean": "rimraf dist tsconfig.build.tsbuildinfo && tsc -p tsconfig.build.json",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
     "start:dev": "nest start --watch",

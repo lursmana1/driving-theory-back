@@ -13,20 +13,48 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { AuthGuard } from '@nestjs/passport';
 import { JwtAuthGuard } from './jwt-auth.guard';
+import {
+  resolveApiPublicUrl,
+  resolveGoogleCallbackUrl,
+  resolveGoogleLoginUrl,
+} from './auth-url.util';
 
 function getCookieOptions() {
+  const isProduction = process.env.NODE_ENV === 'production';
   return {
     httpOnly: true,
-    sameSite: 'lax' as const,
-    secure: process.env.NODE_ENV === 'production',
+    // Cross-origin SPA (frontend on Vercel, API on Render) needs SameSite=None.
+    sameSite: (isProduction ? 'none' : 'lax') as 'none' | 'lax',
+    secure: isProduction,
     path: '/',
     maxAge: 7 * 24 * 60 * 60 * 1000,
   };
 }
 
+function appendAccessTokenToRedirect(baseUrl: string, accessToken: string): string {
+  try {
+    const url = new URL(baseUrl);
+    url.searchParams.set('access_token', accessToken);
+    return url.toString();
+  } catch {
+    const sep = baseUrl.includes('?') ? '&' : '?';
+    return `${baseUrl}${sep}access_token=${encodeURIComponent(accessToken)}`;
+  }
+}
+
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
+
+  /** Frontend: redirect the browser to `googleLoginUrl` from this response. */
+  @Get('config')
+  getAuthConfig() {
+    return {
+      googleLoginUrl: resolveGoogleLoginUrl(),
+      googleCallbackUrl: resolveGoogleCallbackUrl(),
+      apiPublicUrl: resolveApiPublicUrl(),
+    };
+  }
 
   @Get('google')
   @UseGuards(AuthGuard('google'))
@@ -49,8 +77,8 @@ export class AuthController {
 
     res.cookie('access_token', result.access_token, getCookieOptions());
 
-    const redirectUrl = process.env.GOOGLE_REDIRECT_AFTER_LOGIN || '/';
-    res.redirect(redirectUrl);
+    const redirectBase = process.env.GOOGLE_REDIRECT_AFTER_LOGIN || '/';
+    res.redirect(appendAccessTokenToRedirect(redirectBase, result.access_token));
   }
 
   @Post('register')
@@ -67,7 +95,7 @@ export class AuthController {
 
     res.cookie('access_token', result.access_token, getCookieOptions());
 
-    return { user: result.user };
+    return { access_token: result.access_token, user: result.user };
   }
 
   @Post('login')
@@ -79,7 +107,7 @@ export class AuthController {
 
     res.cookie('access_token', result.access_token, getCookieOptions());
 
-    return { user: result.user };
+    return { access_token: result.access_token, user: result.user };
   }
 
   @Get('me')
@@ -93,7 +121,7 @@ export class AuthController {
 
   @Post('logout')
   logout(@Res({ passthrough: true }) res: Response) {
-    res.clearCookie('access_token', { path: '/' });
+    res.clearCookie('access_token', getCookieOptions());
     return { ok: true };
   }
 }

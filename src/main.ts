@@ -1,4 +1,5 @@
 import { NestFactory } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 
@@ -14,7 +15,10 @@ function parseOrigins(value?: string) {
 }
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // Required behind Render/nginx so secure cookies and OAuth redirects work.
+  app.set('trust proxy', 1);
 
   app.useGlobalPipes(
     new ValidationPipe({

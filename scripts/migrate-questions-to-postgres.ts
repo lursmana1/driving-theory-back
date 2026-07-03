@@ -26,7 +26,7 @@ function pgDataSource(): DataSource {
     port: Number(process.env.PG_PORT || process.env.DB_PORT) || 5432,
     username: process.env.PG_USERNAME || process.env.DB_USERNAME || 'postgres',
     password: process.env.PG_PASSWORD || process.env.DB_PASSWORD || '',
-    database: process.env.PG_DATABASE || process.env.DB_DATABASE || 'nneesstt',
+    database: process.env.PG_DATABASE || process.env.DB_DATABASE || 'driving_theory_back',
     entities: [Question],
     synchronize: true,
   });

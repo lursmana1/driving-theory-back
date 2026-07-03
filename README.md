@@ -1,4 +1,4 @@
-# nneesstt
+# Driving Theory Back
 
 Backend API for a Georgian driving license theory exam app. Supports all license categories (AM, A, B, C, C1, D, D1, and more), multilingual questions (Georgian, Russian, English), personalized exam selection, and user weakness statistics.
 
@@ -35,7 +35,7 @@ Built with **NestJS** and **PostgreSQL** (TypeORM).
 
 ```bash
 git clone <repo-url>
-cd nneesstt
+cd driving-theory-back
 npm install
 cp .env.example .env
 # Edit .env with your database URL and secrets

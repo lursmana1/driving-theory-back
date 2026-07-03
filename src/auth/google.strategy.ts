@@ -1,17 +1,44 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { Strategy, VerifyCallback } from 'passport-google-oauth20';
 import { ConfigService } from '@nestjs/config';
+import {
+  assertGoogleOAuthConfig,
+  resolveGoogleCallbackUrl,
+} from './auth-url.util';
 
 @Injectable()
-export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
+export class GoogleStrategy extends PassportStrategy(Strategy, 'google')
+  implements OnModuleInit
+{
+  private readonly logger = new Logger(GoogleStrategy.name);
+
   constructor(configService: ConfigService) {
+    const callbackURL = resolveGoogleCallbackUrl();
+    const clientID = (configService.get<string>('GOOGLE_CLIENT_ID') ?? '').replace(
+      /\s/g,
+      '',
+    );
+    const clientSecret = (
+      configService.get<string>('GOOGLE_CLIENT_SECRET') ?? ''
+    ).replace(/\s/g, '');
+
     super({
-      clientID: configService.get<string>('GOOGLE_CLIENT_ID')!,
-      clientSecret: configService.get<string>('GOOGLE_CLIENT_SECRET')!,
-      callbackURL: configService.get<string>('GOOGLE_CALLBACK_URL')!,
+      clientID,
+      clientSecret,
+      callbackURL,
       scope: ['email', 'profile'],
+      passReqToCallback: false,
     });
+  }
+
+  onModuleInit(): void {
+    for (const warning of assertGoogleOAuthConfig()) {
+      this.logger.warn(warning);
+    }
+    this.logger.log(
+      `Google OAuth callback URL: ${resolveGoogleCallbackUrl()}`,
+    );
   }
 
   async validate(

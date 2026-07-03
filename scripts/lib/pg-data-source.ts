@@ -28,7 +28,7 @@ export function createPgDataSource(
     port: Number(process.env.PG_PORT) || 5432,
     username: process.env.PG_USERNAME || 'postgres',
     password: process.env.PG_PASSWORD || '',
-    database: process.env.PG_DATABASE || 'nneesstt',
+    database: process.env.PG_DATABASE || 'driving_theory_back',
     entities,
     synchronize: false,
   });

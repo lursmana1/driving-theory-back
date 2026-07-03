@@ -26,7 +26,7 @@ async function main() {
         user: process.env.PG_USERNAME || process.env.DB_USERNAME || 'postgres',
         password: process.env.PG_PASSWORD || process.env.DB_PASSWORD || '',
         database:
-          process.env.PG_DATABASE || process.env.DB_DATABASE || 'nneesstt',
+          process.env.PG_DATABASE || process.env.DB_DATABASE || 'driving_theory_back',
       };
 
   console.log('Connecting to PostgreSQL...');

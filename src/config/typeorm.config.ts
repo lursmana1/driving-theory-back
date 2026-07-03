@@ -40,7 +40,7 @@ function pgConnection(config: ConfigService) {
     port: Number(config.get<string>('PG_PORT')) || 5432,
     username: config.get<string>('PG_USERNAME') || 'postgres',
     password: config.get<string>('PG_PASSWORD') || '',
-    database: config.get<string>('PG_DATABASE') || 'nneesstt',
+    database: config.get<string>('PG_DATABASE') || 'driving_theory_back',
   };
 }
 
