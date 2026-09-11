@@ -38,6 +38,8 @@ const DEFAULT_BUCKET = 'prava-ge-assets';
 const MIN_S3_BYTES = 1000;
 const MIN_DECODED_AUDIO_BYTES = 800;
 const MAX_AUDIO_GENERATION_ATTEMPTS = 4;
+/** Keys are stable and overwritten on re-sync, so this is not `immutable` */
+const AUDIO_CACHE_CONTROL = 'public, max-age=2592000';
 const DEBUG = process.env.GEORGIAN_SYNC_DEBUG === '1';
 
 type QuestionKaDoc = {
@@ -303,8 +305,8 @@ async function findReusableS3AudioUrl(
   region: string,
   baseKey: string,
 ): Promise<string | null> {
-  // Georgian assets are mostly .wav; a few early files are .mp3
-  for (const ext of ['wav', 'mp3'] as const) {
+  // webm first: it replaced the older wav/mp3 uploads, so prefer it on re-sync
+  for (const ext of ['webm', 'wav', 'mp3'] as const) {
     const key = `${baseKey}.${ext}`;
     if (await s3ObjectExists(s3, bucket, key)) {
       return getPublicUrl(bucket, region, key);
@@ -514,6 +516,7 @@ async function main() {
             Key: key,
             Body: extracted.buffer,
             ContentType: extracted.contentType,
+            CacheControl: AUDIO_CACHE_CONTROL,
           }),
         );
         await ds.query(

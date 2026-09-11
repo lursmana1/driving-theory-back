@@ -57,6 +57,13 @@ async function bootstrap() {
     credentials: true,
   });
 
+  app
+    .getHttpAdapter()
+    .getInstance()
+    .get('/health', (_req, res) => {
+      res.status(200).json({ ok: true });
+    });
+
   const port = process.env.PORT ? Number(process.env.PORT) : 3000;
 
   await app.listen(port);

@@ -24,6 +24,8 @@ const DELAY_MS = Number(process.env.AUDIO_DELAY_MS ?? 2000);
 const BATCH_LIMIT = Number(process.env.AUDIO_BATCH_LIMIT ?? 5000);
 /** Regenerate if S3 object is missing or too small (corrupt / empty upload) */
 const MIN_S3_BYTES = Number(process.env.AUDIO_MIN_S3_BYTES ?? 1000);
+/** Keys are stable and overwritten on re-sync, so this is not `immutable` */
+const AUDIO_CACHE_CONTROL = 'public, max-age=2592000';
 
 const VOICE_MAPPING: Record<Lang, { name?: string; langCode: string }> = {
   ka: { langCode: 'ka-GE' },
@@ -259,6 +261,7 @@ async function main() {
         Key: key,
         Body: body,
         ContentType: 'audio/mpeg',
+        CacheControl: AUDIO_CACHE_CONTROL,
       }),
     );
 

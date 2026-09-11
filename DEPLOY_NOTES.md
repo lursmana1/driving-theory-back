@@ -102,3 +102,20 @@ anything unless passed `--confirm`. It should report zero columns.
 | Start Command | `npm run start:prod` |
 
 Production entry: **`dist/main.js`** (repo root).
+
+## Coolify / Hetzner
+
+DNS (A records → server IPv4), not in Coolify:
+
+- `admin.prava.ge` — Coolify UI
+- `api.prava.ge` — this Nest API
+
+Coolify application: Dockerfile (repo root), port **3000**, domain `https://api.prava.ge`, health path `/health`.
+
+Copy env from `.env.example` (Coolify production block). Coolify Postgres: use the internal `DATABASE_URL` it prints (no `sslmode=require`). `DB_SYNCHRONIZE=false`. `TZ=UTC`.
+
+Google Console: Authorized redirect URI = `https://api.prava.ge/auth/google/callback`. Frontend `NEXT_PUBLIC_API_URL` (or equivalent) = `https://api.prava.ge`.
+
+Restore Neon with `pg_dump` / `pg_restore` after Postgres is up. Leave Neon running until `/categories` and Google login work.
+
+

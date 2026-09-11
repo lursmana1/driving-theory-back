@@ -5,6 +5,9 @@
   "author": "",
   "private": true,
   "license": "UNLICENSED",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "build:clean": "rimraf dist tsconfig.build.tsbuildinfo && tsc -p tsconfig.build.json",
@@ -21,8 +24,11 @@
     "sync:questions": "ts-node -r tsconfig-paths/register scripts/run-question-sync.ts",
     "sync:audio": "ts-node -r tsconfig-paths/register scripts/sync-audio.ts",
     "sync:audio:backfill": "ts-node -r tsconfig-paths/register scripts/backfill-audio-from-s3.ts",
+    "sync:audio:cache-headers": "ts-node -r tsconfig-paths/register scripts/set-audio-cache-headers.ts",
     "sync:georgian": "ts-node -r tsconfig-paths/register scripts/sync-georgian.ts",
     "audio:local-webm": "ts-node -r tsconfig-paths/register scripts/download-audio-to-webm.ts",
+    "audio:ka:webm": "ts-node -r tsconfig-paths/register scripts/migrate-georgian-audio-to-webm.ts",
+    "audio:audit": "ts-node -r tsconfig-paths/register scripts/audit-audio-objects.ts",
     "sync:recover": "ts-node -r tsconfig-paths/register scripts/recover-questions.ts",
     "sync:translate-correct": "ts-node -r tsconfig-paths/register scripts/translate-and-correct.ts",
     "import:questions:csv": "ts-node -r tsconfig-paths/register scripts/import-questions-from-csv.ts",
