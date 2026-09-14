@@ -41,7 +41,9 @@ lerna-debug.log*
 AGENTS.md
 docs/seo/
 
-# dotenv environment variable files
+# Local Keycloak Postgres compose (contains host secrets; leftover, not Coolify)
+infra/docker-compose-postgres.yaml
+
 .env
 .env.development.local
 .env.test.local
