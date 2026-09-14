@@ -1,7 +1,18 @@
 # driving-theory-back
 
+Backend API for **[prava.ge](https://prava.ge)** — Georgian driving-license theory exam prep (ka / ru / en).
 
-Backend API for a Georgian driving license theory exam app. Supports all license categories (AM, A, B, C, C1, D, D1, and more), multilingual questions (Georgian, Russian, English), personalized exam selection, and user weakness statistics.
+**Live**
+
+| | URL |
+|--|-----|
+| Site | https://prava.ge |
+| API | https://api.prava.ge |
+| Health | https://api.prava.ge/health |
+
+Hosted on **Hetzner** with **Coolify**. Postgres runs on the same server. Tutor audio and images stay on **AWS S3**.
+
+Supports all license categories (AM, A, B, C, C1, D, D1, and more), multilingual questions, personalized exam selection, and user weakness statistics.
 
 Built with **NestJS** and **PostgreSQL** (TypeORM).
 
@@ -20,7 +31,7 @@ Built with **NestJS** and **PostgreSQL** (TypeORM).
 | Layer | Technology |
 |-------|------------|
 | Framework | NestJS 11 |
-| Database | PostgreSQL (Neon / Docker) |
+| Database | PostgreSQL (Coolify on Hetzner; local Docker or Neon for dev) |
 | ORM | TypeORM |
 | Auth | Passport (JWT, Google OAuth) |
 | Storage | AWS S3 |
@@ -29,8 +40,8 @@ Built with **NestJS** and **PostgreSQL** (TypeORM).
 
 ### Prerequisites
 
-- Node.js 20+
-- PostgreSQL 16+ (local Docker, or a hosted provider like [Neon](https://neon.tech))
+- Node.js 22+
+- PostgreSQL 16+ (local Docker, or the Coolify database in production)
 
 ### Install
 
@@ -68,7 +79,7 @@ Copy `.env.example` and configure:
 
 | Variable | Description |
 |----------|-------------|
-| `DATABASE_URL` | PostgreSQL connection string (recommended for Neon/Render) |
+| `DATABASE_URL` | PostgreSQL connection string (Coolify internal URL in production) |
 | `DB_SYNCHRONIZE` | `false` in production |
 | `JWT_SECRET` | Secret for signing JWT tokens |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google OAuth |
@@ -90,7 +101,7 @@ Authorization: Bearer <jwt>
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/categories` | List license categories |
+| `GET` | `/health` | Liveness `{ "ok": true }` |
 | `GET` | `/categories/:id` | Category detail with subjects |
 | `GET` | `/questions?lang=ka&category=0&page=1&size=20` | Paginated questions |
 | `GET` | `/questions/random?lang=ka&count=10&category=0` | Random practice set |
@@ -211,20 +222,28 @@ See [docs/QUESTION-SELECTION.md](docs/QUESTION-SELECTION.md) for details.
 
 ## Deployment
 
-Production setup: **Render** (API) + **Neon** (PostgreSQL).
+Production is **Hetzner + Coolify** (not Render).
+
+| Host | Role |
+|------|------|
+| https://prava.ge | Next.js frontend |
+| https://api.prava.ge | this Nest API (`Dockerfile`, port 3000) |
+| https://admin.prava.ge | Coolify panel |
+| Coolify Postgres | app database (`DB_SYNCHRONIZE=false`) |
+| AWS S3 (`prava-ge-assets`) | audio + images |
+
+Google OAuth redirect: `https://api.prava.ge/auth/google/callback`. CORS `FRONTEND_ORIGIN` must include `https://prava.ge`. Frontend API base (`NEXT_PUBLIC_BACKEND_URL` / `NEXT_PUBLIC_API_URL`) must be `https://api.prava.ge` and a **build** variable.
 
 ```env
-DATABASE_URL=postgresql://...@...neon.tech/neondb?sslmode=require
+NODE_ENV=production
+TZ=UTC
+DATABASE_URL=postgresql://...@<coolify-postgres>:5432/postgres
 DB_SYNCHRONIZE=false
+API_PUBLIC_URL=https://api.prava.ge
+FRONTEND_ORIGIN=https://prava.ge,https://www.prava.ge
 ```
 
-| Render setting | Value |
-|----------------|-------|
-| Build Command | `npm ci && npm run build` |
-| Start Command | `npm run start:prod` |
-| Root Directory | *(empty — repo root)* |
-
-Full checklist: [DEPLOY_NOTES.md](DEPLOY_NOTES.md) and [docs/DEPLOY-RENDER.md](docs/DEPLOY-RENDER.md).
+Full checklist: [DEPLOY_NOTES.md](DEPLOY_NOTES.md).
 
 ## Project structure
 
