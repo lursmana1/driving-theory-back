@@ -9,6 +9,7 @@ import { User } from '../users/entities/user.entity';
 import { JwtStrategy } from './jwt.strategy';
 import { GoogleStrategy } from './google.strategy';
 import { AdminGuard } from './admin.guard';
+import { ACCESS_TOKEN_TTL } from './auth.constants';
 
 @Module({
   imports: [
@@ -18,7 +19,7 @@ import { AdminGuard } from './admin.guard';
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => ({
         secret: configService.get<string>('JWT_SECRET'),
-        signOptions: { expiresIn: '7d', algorithm: 'HS256' },
+        signOptions: { expiresIn: ACCESS_TOKEN_TTL, algorithm: 'HS256' },
       }),
       inject: [ConfigService],
     }),

@@ -19,6 +19,7 @@ import {
   resolveGoogleCallbackUrl,
   resolveGoogleLoginUrl,
 } from './auth-url.util';
+import { ACCESS_TOKEN_MAX_AGE_MS } from './auth.constants';
 
 function getCookieOptions(): CookieOptions {
   const isProduction = process.env.NODE_ENV === 'production';
@@ -28,7 +29,7 @@ function getCookieOptions(): CookieOptions {
     sameSite: isProduction ? 'none' : 'lax',
     secure: isProduction,
     path: '/',
-    maxAge: 7 * 24 * 60 * 60 * 1000,
+    maxAge: ACCESS_TOKEN_MAX_AGE_MS,
   };
 }
 
