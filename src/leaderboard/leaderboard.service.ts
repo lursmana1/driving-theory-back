@@ -9,6 +9,7 @@ import { Repository } from 'typeorm';
 import { UserAnswer } from '../exam-attempts/entities/user-answer.entity';
 import { User } from '../users/entities/user.entity';
 import { LeaderboardPeriod } from './entities/leaderboard-period.entity';
+import { parsePgInt } from '../common/utils/pg-row.util.js';
 import type {
   LeaderboardEntry,
   LeaderboardResponse,
@@ -53,7 +54,7 @@ function toEntry(row: RankedRow): LeaderboardEntry {
     place: row.place,
     name: row.name,
     surname: row.surname,
-    score: Number(row.score),
+    score: parsePgInt(row.score),
   };
 }
 

@@ -195,7 +195,6 @@ Every step is a Postgres round trip, so the query count is what matters:
 | `MIN_ANSWERS_FOR_FULL_PERSONALIZATION` | 500 | Use full 50/40/10 split |
 | `MAX_HISTORY_FOR_WEIGHTING` | 500 | Last N answers for weakness |
 | `MAX_WEAKNESS_IDS_CAP` | 100 | Max IDs per bucket |
-| `DEFAULT_QUESTION_COUNT` | 30 | Default questions per exam |
 
 **File:** `src/exam-attempts/question-selection/selection.types.ts`
 

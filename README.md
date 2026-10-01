@@ -216,7 +216,6 @@ See [docs/QUESTION-SELECTION.md](docs/QUESTION-SELECTION.md) for details.
 | `npm test` | Unit tests |
 | `npm run db:ensure-user-stats-indexes` | Indexes for user-stats queries |
 | `npm run db:ensure-practice-answers` | Create `practice_answers` table |
-| `npm run db:verify-questions` | Verify question import |
 | `npm run db:fix-am-category-tags` | Sync `categories` array from ka → en/ru |
 | `npm run import:questions` | Import from CSV (`--ka`, `--ru`, `--en`) |
 

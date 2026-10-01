@@ -47,10 +47,4 @@ export type ReadinessResult = {
   subjectsMastered: number;
   subjectsTotal: number;
   weakSubjectsCount: number;
-  /** @deprecated aliases for older clients */
-  examPart: number;
-  passRatePart: number;
-  coveragePart: number;
-  masteryPart: number;
-  stabilityPart: number;
 };

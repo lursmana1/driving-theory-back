@@ -27,21 +27,10 @@ import type {
   CategoryProgress,
   QuestionPoolResponse,
   ReadinessResponse,
+  SubjectAggregateRow,
   SubjectProgressResponse,
   UserStatsSummary,
   WeakQuestionsResponse,
-  WeakSubjectsResponse,
-} from './user-stats.types.js';
-
-export type {
-  QuestionPoolResponse,
-  ReadinessResponse,
-  SubjectProgressResponse,
-  UserStatsSummary,
-  WeakQuestionItem,
-  WeakQuestionPreview,
-  WeakQuestionsResponse,
-  WeakSubjectItem,
   WeakSubjectsResponse,
 } from './user-stats.types.js';
 
@@ -258,18 +247,8 @@ export class UserStatsService {
       this.coverage.loadSubjectAggregatesForCategory(userId, categoryId),
     ]);
 
-    const countsBySubject = new Map<
-      number,
-      { correctCount: number; wrongCount: number }
-    >();
-    const distinctBySubject = new Map<number, number>();
-    for (const row of subjectStats) {
-      countsBySubject.set(row.subjectId, {
-        correctCount: row.correctCount,
-        wrongCount: row.wrongCount,
-      });
-      distinctBySubject.set(row.subjectId, row.distinctQuestions);
-    }
+    const { countsBySubject, distinctBySubject } =
+      this.indexSubjectAggregates(subjectStats);
 
     const progressRows = buildSubjectProgressRows(
       catalog,
@@ -281,5 +260,24 @@ export class UserStatsService {
     );
 
     return { display, rule, passRate, progressRows };
+  }
+
+  private indexSubjectAggregates(rows: SubjectAggregateRow[]): {
+    countsBySubject: Map<number, { correctCount: number; wrongCount: number }>;
+    distinctBySubject: Map<number, number>;
+  } {
+    const countsBySubject = new Map<
+      number,
+      { correctCount: number; wrongCount: number }
+    >();
+    const distinctBySubject = new Map<number, number>();
+    for (const row of rows) {
+      countsBySubject.set(row.subjectId, {
+        correctCount: row.correctCount,
+        wrongCount: row.wrongCount,
+      });
+      distinctBySubject.set(row.subjectId, row.distinctQuestions);
+    }
+    return { countsBySubject, distinctBySubject };
   }
 }

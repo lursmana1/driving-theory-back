@@ -5,6 +5,7 @@ import { Question } from '../questions/entities/question.entity';
 import { GeminiClient, ModelIdMismatchError, sleep } from './gemini.client.js';
 import { QuestionUpsertWriter } from './question-upsert.writer.js';
 import { buildSyncPrompt, isFullySynced } from './sync-prompt.builder.js';
+import { parsePgInt } from '../common/utils/pg-row.util.js';
 import type {
   QuestionRow,
   QuestionTranslations,
@@ -114,7 +115,7 @@ export class QuestionSyncService {
       .select('DISTINCT q.id', 'id')
       .orderBy('q.id', 'ASC')
       .getRawMany<{ id: string }>();
-    return rows.map((row) => Number(row.id));
+    return rows.map((row) => parsePgInt(row.id));
   }
 
   private async loadTranslations(id: number): Promise<QuestionTranslations> {

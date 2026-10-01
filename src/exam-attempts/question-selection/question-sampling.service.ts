@@ -1,11 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, SelectQueryBuilder } from 'typeorm';
 import { Question } from '../../questions/entities/question.entity';
 import {
   applyQuestionFilters,
   QuestionFilterOpts,
 } from '../../questions/question-query.util';
+import { parsePgInt } from '../../common/utils/pg-row.util.js';
 import type { SelectionRatios, WeaknessIds } from './selection.types.js';
 
 @Injectable()
@@ -42,17 +43,11 @@ export class QuestionSamplingService {
   ): Promise<number[]> {
     if (limit <= 0) return [];
 
-    const qb = this.questionRepo.createQueryBuilder('q').select('q.id', 'id');
-    applyQuestionFilters(qb, 'q', filter);
-
-    if (exclude.length) {
-      qb.andWhere('q.id NOT IN (:...exclude)', { exclude });
-    }
-
-    const rows = await qb.orderBy('RANDOM()').limit(limit).getRawMany<{
-      id: string;
-    }>();
-    return rows.map((r) => Number(r.id));
+    return this.sampleWhere(filter, limit, (qb) => {
+      if (exclude.length) {
+        qb.andWhere('q.id NOT IN (:...exclude)', { exclude });
+      }
+    });
   }
 
   async sampleWeighted(
@@ -106,28 +101,17 @@ export class QuestionSamplingService {
     limit: number,
   ): Promise<number[]> {
     if (limit <= 0) return [];
-    const hasMistakes = mistakeIds.length > 0 || mistakeSubjects.length > 0;
-    if (!hasMistakes) return [];
+    if (mistakeIds.length === 0 && mistakeSubjects.length === 0) return [];
 
-    const qb = this.questionRepo.createQueryBuilder('q').select('q.id', 'id');
-    applyQuestionFilters(qb, 'q', filter);
-
-    const orParts: string[] = [];
-    const params: Record<string, unknown> = {};
-    if (mistakeIds.length) {
-      orParts.push('q.id IN (:...mistakeIds)');
-      params.mistakeIds = mistakeIds;
-    }
-    if (mistakeSubjects.length) {
-      orParts.push('q.subject IN (:...mistakeSubjects)');
-      params.mistakeSubjects = mistakeSubjects;
-    }
-    qb.andWhere(`(${orParts.join(' OR ')})`, params);
-
-    const rows = await qb.orderBy('RANDOM()').limit(limit).getRawMany<{
-      id: string;
-    }>();
-    return rows.map((r) => Number(r.id));
+    return this.sampleWhere(filter, limit, (qb) => {
+      this.whereIdOrSubject(
+        qb,
+        mistakeIds,
+        'mistakeIds',
+        mistakeSubjects,
+        'mistakeSubjects',
+      );
+    });
   }
 
   private async sampleSuccessIds(
@@ -138,31 +122,56 @@ export class QuestionSamplingService {
     limit: number,
   ): Promise<number[]> {
     if (limit <= 0) return [];
-    const hasSuccess = successIds.length > 0 || successSubjects.length > 0;
-    if (!hasSuccess) return [];
+    if (successIds.length === 0 && successSubjects.length === 0) return [];
 
+    return this.sampleWhere(filter, limit, (qb) => {
+      if (mistakeIds.length) {
+        qb.andWhere('q.id NOT IN (:...mistakeIds)', { mistakeIds });
+      }
+      this.whereIdOrSubject(
+        qb,
+        successIds,
+        'successIds',
+        successSubjects,
+        'successSubjects',
+      );
+    });
+  }
+
+  private async sampleWhere(
+    filter: QuestionFilterOpts,
+    limit: number,
+    refine: (qb: SelectQueryBuilder<Question>) => void,
+  ): Promise<number[]> {
     const qb = this.questionRepo.createQueryBuilder('q').select('q.id', 'id');
     applyQuestionFilters(qb, 'q', filter);
-
-    if (mistakeIds.length) {
-      qb.andWhere('q.id NOT IN (:...mistakeIds)', { mistakeIds });
-    }
-
-    const orParts: string[] = [];
-    const params: Record<string, unknown> = {};
-    if (successIds.length) {
-      orParts.push('q.id IN (:...successIds)');
-      params.successIds = successIds;
-    }
-    if (successSubjects.length) {
-      orParts.push('q.subject IN (:...successSubjects)');
-      params.successSubjects = successSubjects;
-    }
-    qb.andWhere(`(${orParts.join(' OR ')})`, params);
+    refine(qb);
 
     const rows = await qb.orderBy('RANDOM()').limit(limit).getRawMany<{
       id: string;
     }>();
-    return rows.map((r) => Number(r.id));
+    return rows.map((row) => parsePgInt(row.id));
+  }
+
+  /** Match questions in an id list, a subject list, or either. */
+  private whereIdOrSubject(
+    qb: SelectQueryBuilder<Question>,
+    ids: number[],
+    idParam: string,
+    subjects: number[],
+    subjectParam: string,
+  ): void {
+    const orParts: string[] = [];
+    const params: Record<string, unknown> = {};
+    if (ids.length) {
+      orParts.push(`q.id IN (:...${idParam})`);
+      params[idParam] = ids;
+    }
+    if (subjects.length) {
+      orParts.push(`q.subject IN (:...${subjectParam})`);
+      params[subjectParam] = subjects;
+    }
+    if (orParts.length === 0) return;
+    qb.andWhere(`(${orParts.join(' OR ')})`, params);
   }
 }

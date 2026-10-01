@@ -102,10 +102,5 @@ export function computeReadiness(
     subjectsMastered: mastered,
     subjectsTotal,
     weakSubjectsCount: weak,
-    examPart: round3(examAccuracy),
-    passRatePart: round3(answerAccuracy),
-    coveragePart: round3(practicePart),
-    masteryPart: round3(subjectsTotal > 0 ? mastered / subjectsTotal : 0),
-    stabilityPart: 0,
   };
 }

@@ -2,11 +2,10 @@ import type { CategorySubjectRow } from '../categories/entities/category.entity'
 import {
   SUBJECT_COVERAGE_RATIO,
   MIN_SUBJECT_ATTEMPTS_FOR_STATS,
-  QUESTION_MASTERY_CORRECT_RATIO,
 } from '../common/constants/exam.constants.js';
 import { round3 } from '../common/utils/round3.util.js';
 
-export type SubjectCountRow = {
+type SubjectCountRow = {
   subjectId: number;
   correctCount: number;
   wrongCount: number;
@@ -34,47 +33,13 @@ export function isSubjectCovered(
   return distinctQuestionsAnswered / totalQuestions >= coverageRatio;
 }
 
-export function isSubjectMastered(
+function isSubjectMastered(
   attempted: number,
   correctnessRate: number,
   passRate: number,
   minMasteryAttempts: number = MIN_SUBJECT_ATTEMPTS_FOR_STATS,
 ): boolean {
   return attempted >= minMasteryAttempts && correctnessRate >= passRate;
-}
-
-/**
- * One logical question → correct on subject card only if enough history is right.
- * e.g. 3/10 correct → false (mistake); 7/10 → true.
- */
-export function isQuestionStatCorrect(
-  correctAnswers: number,
-  totalAnswers: number,
-  ratio: number = QUESTION_MASTERY_CORRECT_RATIO,
-): boolean {
-  if (totalAnswers <= 0) return false;
-  return correctAnswers / totalAnswers >= ratio;
-}
-
-export function aggregateSubjectCounts(
-  rows: { subjectId: number; correct: boolean }[],
-): Map<number, { correctCount: number; wrongCount: number }> {
-  const bySubject = new Map<
-    number,
-    { correctCount: number; wrongCount: number }
-  >();
-  for (const row of rows) {
-    if (row.subjectId == null) continue;
-    const subjectId = Number(row.subjectId);
-    const curr = bySubject.get(subjectId) ?? {
-      correctCount: 0,
-      wrongCount: 0,
-    };
-    if (row.correct) curr.correctCount += 1;
-    else curr.wrongCount += 1;
-    bySubject.set(subjectId, curr);
-  }
-  return bySubject;
 }
 
 export function buildSubjectProgressRows(

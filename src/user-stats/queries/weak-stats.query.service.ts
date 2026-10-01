@@ -6,12 +6,14 @@ import {
   MIN_SUBJECT_ATTEMPTS_FOR_STATS,
   QUESTION_MASTERY_CORRECT_RATIO,
 } from '../../common/constants/exam.constants.js';
-import { categoryFilterJson } from '../../common/utils/attempt-category-filter.util.js';
+import { bindCategoryFilter } from '../../common/utils/attempt-category-filter.util.js';
 import {
   combinedGradedAnswersCte,
+  masteryClassifiedCte,
   perQuestionRateCte,
 } from '../../common/sql/combined-answers.sql.js';
 import { SqlParams } from '../../common/sql/sql-params.js';
+import { parsePgInt } from '../../common/utils/pg-row.util.js';
 import type {
   WeakQuestionCountRow,
   WeakQuestionPreview,
@@ -39,12 +41,10 @@ export class WeakStatsQueryService {
     const sp = new SqlParams();
     const userPh = sp.add(userId);
     const limitPh = sp.add(TOP_COUNT);
-    let filterPh: string | undefined;
-    let catPh: string | undefined;
-    if (categoryId != null) {
-      filterPh = sp.add(categoryFilterJson(categoryId));
-      catPh = sp.add(categoryId);
-    }
+    const category =
+      categoryId != null ? bindCategoryFilter(sp, categoryId) : undefined;
+    const filterPh = category?.filterPh;
+    const catPh = category?.categoryPh;
     const masteryPh = sp.add(QUESTION_MASTERY_CORRECT_RATIO);
 
     const rows = await this.manager.query<
@@ -86,11 +86,11 @@ export class WeakStatsQueryService {
     );
 
     return {
-      total: Number(rows[0]?.total ?? 0),
+      total: parsePgInt(rows[0]?.total),
       rows: rows.map((row) => ({
-        questionId: Number(row.questionId),
-        wrongCount: Number(row.wrongCount),
-        totalAttempts: Number(row.totalAttempts),
+        questionId: parsePgInt(row.questionId),
+        wrongCount: parsePgInt(row.wrongCount),
+        totalAttempts: parsePgInt(row.totalAttempts),
       })),
     };
   }
@@ -131,12 +131,10 @@ export class WeakStatsQueryService {
     const userPh = sp.add(userId);
     const minAttemptsPh = sp.add(MIN_SUBJECT_ATTEMPTS_FOR_STATS);
     const limitPh = sp.add(TOP_COUNT);
-    let filterPh: string | undefined;
-    let catPh: string | undefined;
-    if (categoryId != null) {
-      filterPh = sp.add(categoryFilterJson(categoryId));
-      catPh = sp.add(categoryId);
-    }
+    const category =
+      categoryId != null ? bindCategoryFilter(sp, categoryId) : undefined;
+    const filterPh = category?.filterPh;
+    const catPh = category?.categoryPh;
     const masteryPh = sp.add(QUESTION_MASTERY_CORRECT_RATIO);
 
     const rows = await this.manager.query<
@@ -157,15 +155,7 @@ export class WeakStatsQueryService {
         includeSubject: true,
       })},
       ${perQuestionRateCte('combined', 'per_q', true)},
-      classified AS (
-        SELECT
-          per_q.subject,
-          CASE
-            WHEN per_q."correctRate" >= ${masteryPh} THEN true
-            ELSE false
-          END AS "isCorrect"
-        FROM per_q
-      ),
+      ${masteryClassifiedCte('per_q', 'classified', masteryPh)},
       agg AS (
         SELECT
           classified.subject AS "subjectId",
@@ -197,12 +187,12 @@ export class WeakStatsQueryService {
     );
 
     return {
-      total: Number(rows[0]?.total ?? 0),
+      total: parsePgInt(rows[0]?.total),
       rows: rows.map((row) => ({
-        subjectId: Number(row.subjectId),
-        wrongCount: Number(row.wrongCount),
-        correctCount: Number(row.correctCount),
-        attempted: Number(row.attempted),
+        subjectId: parsePgInt(row.subjectId),
+        wrongCount: parsePgInt(row.wrongCount),
+        correctCount: parsePgInt(row.correctCount),
+        attempted: parsePgInt(row.attempted),
         correctnessRate: Number(row.correctnessRate),
       })),
     };
@@ -234,7 +224,7 @@ export class WeakStatsQueryService {
     }>();
 
     return new Map(
-      totalBySubject.map((x) => [Number(x.subject), Number(x.count)]),
+      totalBySubject.map((x) => [parsePgInt(x.subject), parsePgInt(x.count)]),
     );
   }
 }

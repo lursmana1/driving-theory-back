@@ -7,12 +7,14 @@ import {
   CategorySubjectRow,
 } from '../../categories/entities/category.entity';
 import { QUESTION_MASTERY_CORRECT_RATIO } from '../../common/constants/exam.constants.js';
-import { categoryFilterJson } from '../../common/utils/attempt-category-filter.util.js';
+import { bindCategoryFilter } from '../../common/utils/attempt-category-filter.util.js';
 import {
   combinedGradedAnswersCte,
+  masteryClassifiedCte,
   perQuestionRateCte,
 } from '../../common/sql/combined-answers.sql.js';
 import { SqlParams } from '../../common/sql/sql-params.js';
+import { parsePgInt } from '../../common/utils/pg-row.util.js';
 import { round3 } from '../../common/utils/round3.util.js';
 import type {
   QuestionPoolExposure,
@@ -38,8 +40,7 @@ export class CoverageStatsQueryService {
   ): Promise<SubjectAggregateRow[]> {
     const sp = new SqlParams();
     const userPh = sp.add(userId);
-    const filterPh = sp.add(categoryFilterJson(categoryId));
-    const catPh = sp.add(categoryId);
+    const { filterPh, categoryPh: catPh } = bindCategoryFilter(sp, categoryId);
     const masteryPh = sp.add(QUESTION_MASTERY_CORRECT_RATIO);
 
     const rows = await this.manager.query<
@@ -58,15 +59,7 @@ export class CoverageStatsQueryService {
         includeSubject: true,
       })},
       ${perQuestionRateCte('combined', 'per_q', true)},
-      classified AS (
-        SELECT
-          per_q.subject,
-          CASE
-            WHEN per_q."correctRate" >= ${masteryPh} THEN true
-            ELSE false
-          END AS "isCorrect"
-        FROM per_q
-      )
+      ${masteryClassifiedCte('per_q', 'classified', masteryPh)}
       SELECT
         classified.subject AS "subjectId",
         SUM(CASE WHEN classified."isCorrect" = true THEN 1 ELSE 0 END)::int AS "correctCount",
@@ -79,10 +72,10 @@ export class CoverageStatsQueryService {
     );
 
     return rows.map((row) => ({
-      subjectId: Number(row.subjectId),
-      correctCount: Number(row.correctCount),
-      wrongCount: Number(row.wrongCount),
-      distinctQuestions: Number(row.distinctQuestions),
+      subjectId: parsePgInt(row.subjectId),
+      correctCount: parsePgInt(row.correctCount),
+      wrongCount: parsePgInt(row.wrongCount),
+      distinctQuestions: parsePgInt(row.distinctQuestions),
     }));
   }
 
@@ -94,8 +87,7 @@ export class CoverageStatsQueryService {
   ): Promise<QuestionPoolExposure> {
     const sp = new SqlParams();
     const userPh = sp.add(userId);
-    const filterPh = sp.add(categoryFilterJson(categoryId));
-    const catPh = sp.add(categoryId);
+    const { filterPh, categoryPh: catPh } = bindCategoryFilter(sp, categoryId);
 
     const [answeredRow, categoryCountRow] = await Promise.all([
       this.manager.query<{ count: string }[]>(
@@ -119,8 +111,8 @@ export class CoverageStatsQueryService {
         .getRawOne<{ count: string }>(),
     ]);
 
-    const totalQuestionsInCategory = Number(categoryCountRow?.count ?? 0);
-    const distinctQuestionsAnswered = Number(answeredRow[0]?.count ?? 0);
+    const totalQuestionsInCategory = parsePgInt(categoryCountRow?.count);
+    const distinctQuestionsAnswered = parsePgInt(answeredRow[0]?.count);
     const exposureRate =
       totalQuestionsInCategory > 0
         ? round3(distinctQuestionsAnswered / totalQuestionsInCategory)
@@ -156,7 +148,7 @@ export class CoverageStatsQueryService {
     ]);
 
     const liveCounts = new Map(
-      liveRows.map((r) => [Number(r.subject), Number(r.count)]),
+      liveRows.map((r) => [parsePgInt(r.subject), parsePgInt(r.count)]),
     );
 
     if (category?.subjects?.length) {
@@ -170,9 +162,9 @@ export class CoverageStatsQueryService {
     }
 
     return liveRows.map((r) => ({
-      id: Number(r.subject),
+      id: parsePgInt(r.subject),
       name: `Subject ${r.subject}`,
-      questionsCount: Number(r.count),
+      questionsCount: parsePgInt(r.count),
     }));
   }
 }

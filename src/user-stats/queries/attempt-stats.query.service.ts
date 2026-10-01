@@ -14,7 +14,7 @@ import {
   categoryFilterJson,
   liveQuestionJoinSql,
 } from '../../common/utils/attempt-category-filter.util.js';
-import { parsePgBoolean } from '../../common/utils/pg-row.util.js';
+import { parsePgBoolean, parsePgInt } from '../../common/utils/pg-row.util.js';
 import type { RecentAttemptRow } from '../user-stats.types.js';
 
 /** Completed-exam history that feeds the readiness score. */
@@ -42,7 +42,7 @@ export class AttemptStatsQueryService {
       )
       .getRawOne<{ count: string }>();
 
-    return Number(row?.count ?? 0);
+    return parsePgInt(row?.count);
   }
 
   /**
@@ -131,11 +131,11 @@ export class AttemptStatsQueryService {
     );
 
     return rows.map((row) => ({
-      correctCount: Number(row.correctCount ?? 0),
-      minCorrectToPass: Number(row.minCorrectToPass ?? fallbackThreshold),
+      correctCount: parsePgInt(row.correctCount),
+      minCorrectToPass: parsePgInt(row.minCorrectToPass, fallbackThreshold),
       passed: parsePgBoolean(row.passed),
-      answeredCount: Number(row.answeredCount ?? 0),
-      earlyWrongCount: Number(row.earlyWrongCount ?? 0),
+      answeredCount: parsePgInt(row.answeredCount),
+      earlyWrongCount: parsePgInt(row.earlyWrongCount),
     }));
   }
 }

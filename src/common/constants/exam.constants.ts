@@ -4,9 +4,6 @@ export const MIN_ANSWERS_FOR_PERSONALIZATION = 100;
 /** Minimum answers for full personalization (50/40/10). Below this, use mainly-random ratios. */
 export const MIN_ANSWERS_FOR_FULL_PERSONALIZATION = 500;
 
-/** Default question count per exam when no category is specified (A-category rules). */
-export const DEFAULT_QUESTION_COUNT = 30;
-
 /** Exam duration in minutes. */
 export const EXAM_DURATION_MINUTES = 30;
 

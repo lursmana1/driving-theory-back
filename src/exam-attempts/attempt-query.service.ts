@@ -10,7 +10,7 @@ import {
   DEFAULT_HISTORY_PAGE_SIZE,
 } from '../common/constants/exam.constants.js';
 import { resolveDisplayDuration } from './attempt-duration.util.js';
-import { parsePgBoolean } from '../common/utils/pg-row.util.js';
+import { parsePgBoolean, parsePgInt } from '../common/utils/pg-row.util.js';
 import type {
   AttemptSummary,
   AttemptHistoryCounts,
@@ -117,8 +117,8 @@ export class AttemptQueryService {
       }>();
 
     return rows.map((a) => ({
-      questionId: Number(a.questionId),
-      subject: a.subject == null ? null : Number(a.subject),
+      questionId: parsePgInt(a.questionId),
+      subject: a.subject == null ? null : parsePgInt(a.subject),
       correct: parsePgBoolean(a.correct),
       chosenAnswer: a.chosenAnswer,
       createdAt: new Date(a.createdAt),
@@ -194,10 +194,10 @@ export class AttemptQueryService {
         incomplete: string;
       }>();
 
-    const total = Number(row?.total ?? 0);
-    const passed = Number(row?.passed ?? 0);
-    const failed = Number(row?.failed ?? 0);
-    const incomplete = Number(row?.incomplete ?? 0);
+    const total = parsePgInt(row?.total);
+    const passed = parsePgInt(row?.passed);
+    const failed = parsePgInt(row?.failed);
+    const incomplete = parsePgInt(row?.incomplete);
     const completed = passed + failed;
 
     return {
@@ -234,9 +234,9 @@ export class AttemptQueryService {
       }>();
 
     for (const row of rows) {
-      map.set(Number(row.attemptId), {
-        answeredCount: Number(row.answeredCount),
-        correctCount: Number(row.correctCount),
+      map.set(parsePgInt(row.attemptId), {
+        answeredCount: parsePgInt(row.answeredCount),
+        correctCount: parsePgInt(row.correctCount),
         lastAnswerAt: row.lastAnswerAt ? new Date(row.lastAnswerAt) : null,
       });
     }

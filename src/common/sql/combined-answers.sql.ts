@@ -106,3 +106,20 @@ ${cteName} AS (
   GROUP BY ${sourceCte}."questionId"
 )`;
 }
+
+/** One row per question, marked correct when its rate meets the mastery threshold. */
+export function masteryClassifiedCte(
+  sourceCte: string,
+  cteName: string,
+  masteryPlaceholder: string,
+): string {
+  return `${cteName} AS (
+  SELECT
+    ${sourceCte}.subject,
+    CASE
+      WHEN ${sourceCte}."correctRate" >= ${masteryPlaceholder} THEN true
+      ELSE false
+    END AS "isCorrect"
+  FROM ${sourceCte}
+)`;
+}
