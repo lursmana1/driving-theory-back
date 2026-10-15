@@ -1,3 +1,4 @@
+import { NotFoundException } from '@nestjs/common';
 import { Repository } from 'typeorm';
 import { QuestionsService } from './questions.service';
 import { Question } from './entities/question.entity';
@@ -67,5 +68,30 @@ describe('QuestionsService.findPaged', () => {
     const result = await service.findPaged(opts);
     expect(result.data).toEqual([]);
     expect(result.totalPages).toBe(0);
+  });
+});
+
+describe('QuestionsService.findOne', () => {
+  function setupFindOne(found: Question | null) {
+    const findOne = jest.fn().mockResolvedValue(found);
+    const service = new QuestionsService({
+      findOne,
+    } as unknown as Repository<Question>);
+    return { service, findOne };
+  }
+
+  it('returns the row for the requested language', async () => {
+    const { service, findOne } = setupFindOne(rows[0]);
+
+    await expect(service.findOne(1, 'ka')).resolves.toBe(rows[0]);
+    expect(findOne).toHaveBeenCalledWith({ where: { id: 1, lang: 'ka' } });
+  });
+
+  it('throws NotFoundException instead of returning null', async () => {
+    const { service } = setupFindOne(null);
+
+    await expect(service.findOne(999, 'ka')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
   });
 });

@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { ConflictException, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Question } from '../questions/entities/question.entity';
@@ -27,6 +27,8 @@ type IdOutcome = 'processed' | 'skipped' | 'missing' | 'failed' | 'stop';
 @Injectable()
 export class QuestionSyncService {
   private readonly logger = new Logger(QuestionSyncService.name);
+  /** Two overlapping runs would double-spend Gemini quota on the same ids. */
+  private running = false;
 
   constructor(
     @InjectRepository(Question)
@@ -36,6 +38,18 @@ export class QuestionSyncService {
   ) {}
 
   async runSync(options: SyncOptions = {}): Promise<SyncSummary> {
+    if (this.running) {
+      throw new ConflictException('A question sync is already running');
+    }
+    this.running = true;
+    try {
+      return await this.runBatch(options);
+    } finally {
+      this.running = false;
+    }
+  }
+
+  private async runBatch(options: SyncOptions): Promise<SyncSummary> {
     const limit = options.limit ?? DEFAULT_LIMIT;
     const offset = options.offset ?? 0;
 

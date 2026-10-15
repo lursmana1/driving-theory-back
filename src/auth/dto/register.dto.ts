@@ -5,6 +5,7 @@ import {
   IsString,
   MinLength,
 } from 'class-validator';
+import { NormalizeEmail } from '../../common/utils/email.util.js';
 
 export class RegisterDto {
   @IsString()
@@ -15,6 +16,7 @@ export class RegisterDto {
   @IsOptional()
   surname?: string;
 
+  @NormalizeEmail()
   @IsEmail()
   @IsNotEmpty()
   email: string;

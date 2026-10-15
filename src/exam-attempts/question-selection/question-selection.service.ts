@@ -41,8 +41,15 @@ export class QuestionSelectionService {
       options.allSubjects,
     );
 
-    if (options.categories?.length) {
-      const available = await this.samplingService.countMatching(match);
+    // The pool check and the history count are independent reads.
+    const [available, totalAnswers] = await Promise.all([
+      options.categories?.length
+        ? this.samplingService.countMatching(match)
+        : Promise.resolve(null),
+      this.weaknessService.getTotalAnswerCount(options.userId),
+    ]);
+
+    if (available != null) {
       try {
         assertSufficientQuestionPool(available, examRule);
       } catch (err) {
@@ -52,10 +59,6 @@ export class QuestionSelectionService {
         throw err;
       }
     }
-
-    const totalAnswers = await this.weaknessService.getTotalAnswerCount(
-      options.userId,
-    );
 
     if (totalAnswers < MIN_ANSWERS_FOR_PERSONALIZATION) {
       const ids = await this.samplingService.sampleRandom(match, count);

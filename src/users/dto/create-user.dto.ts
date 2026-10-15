@@ -1,5 +1,6 @@
 import { IsEmail, IsNotEmpty, IsString, MinLength } from 'class-validator';
 import { Match } from '../../common/validators/match.validator';
+import { NormalizeEmail } from '../../common/utils/email.util.js';
 
 export class CreateUserDto {
   @IsString()
@@ -10,6 +11,7 @@ export class CreateUserDto {
   @IsNotEmpty()
   surname: string;
 
+  @NormalizeEmail()
   @IsEmail()
   @IsNotEmpty()
   email: string;

@@ -1,7 +1,21 @@
-import { Controller, Get, Headers, Param, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Headers,
+  Param,
+  ParseIntPipe,
+  Query,
+} from '@nestjs/common';
 import { QuestionsService } from './questions.service';
 import { parseLang } from '../common/utils/parse-lang.util.js';
 import { parseIdList } from '../common/utils/parse-ids.util.js';
+import {
+  ListQuestionsQueryDto,
+  RandomQuestionsQueryDto,
+} from './dto/questions-query.dto.js';
+
+const DEFAULT_RANDOM_QUESTIONS = 10;
+const MAX_RANDOM_QUESTIONS = 200;
 
 @Controller('questions')
 export class QuestionsController {
@@ -9,42 +23,43 @@ export class QuestionsController {
 
   @Get()
   findPaged(
+    @Query() query: ListQuestionsQueryDto,
     @Query('lang') langQuery?: string,
     @Headers('accept-language') langHeader?: string,
-    @Query('category') category?: string,
     @Query('subjects') subjects?: string,
-    @Query('page') page?: string,
     @Query('size') size?: string,
     @Query('limit') limit?: string,
   ) {
     return this.questionsService.findPaged({
       lang: parseLang(langQuery, langHeader),
-      category: category ? Number(category) : undefined,
+      category: query.category,
       subjects: parseIdList(subjects),
-      page: Math.max(Number(page ?? 1), 1),
+      page: Math.max(query.page ?? 1, 1),
       size: clampSize(size ?? limit),
     });
   }
 
   @Get('random')
   findRandom(
+    @Query() query: RandomQuestionsQueryDto,
     @Query('lang') langQuery?: string,
     @Headers('accept-language') langHeader?: string,
-    @Query('count') count?: string,
-    @Query('category') category?: string,
     @Query('subjects') subjects?: string,
   ) {
     return this.questionsService.findRandom({
       lang: parseLang(langQuery, langHeader),
-      count: Math.min(Math.max(Number(count ?? 10), 1), 200),
-      category: category ? Number(category) : undefined,
+      count: Math.min(
+        Math.max(query.count ?? DEFAULT_RANDOM_QUESTIONS, 1),
+        MAX_RANDOM_QUESTIONS,
+      ),
+      category: query.category,
       subjects: parseIdList(subjects),
     });
   }
 
   @Get(':id')
   findOne(
-    @Param('id') id: string,
+    @Param('id', ParseIntPipe) id: number,
     @Query('lang') langQuery?: string,
     @Headers('accept-language') langHeader?: string,
   ) {

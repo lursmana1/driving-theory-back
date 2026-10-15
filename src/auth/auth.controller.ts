@@ -87,7 +87,8 @@ export class AuthController {
 
     res.cookie('access_token', result.access_token, getCookieOptions());
 
-    return { access_token: result.access_token, user: result.user };
+    // The token travels only in the httpOnly cookie; scripts never see it.
+    return { user: result.user };
   }
 
   @Post('login')
@@ -100,7 +101,8 @@ export class AuthController {
 
     res.cookie('access_token', result.access_token, getCookieOptions());
 
-    return { access_token: result.access_token, user: result.user };
+    // The token travels only in the httpOnly cookie; scripts never see it.
+    return { user: result.user };
   }
 
   @Get('me')

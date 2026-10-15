@@ -22,11 +22,15 @@ import {
 import { buildSubjectProgressRows } from './user-stats-query.util.js';
 import { WeakStatsQueryService } from './queries/weak-stats.query.service';
 import { AttemptStatsQueryService } from './queries/attempt-stats.query.service';
-import { CoverageStatsQueryService } from './queries/coverage-stats.query.service';
+import {
+  CoverageStatsQueryService,
+  toPoolExposure,
+} from './queries/coverage-stats.query.service';
 import type {
   CategoryProgress,
   QuestionPoolResponse,
   ReadinessResponse,
+  RecentAttemptRow,
   SubjectAggregateRow,
   SubjectProgressResponse,
   UserStatsSummary,
@@ -51,13 +55,26 @@ export class UserStatsService {
     categoryId: number,
     lang: string = DEFAULT_LANG,
   ): Promise<UserStatsSummary> {
-    // Pool exposure is independent of progress; only readiness needs it, so
-    // run the two heavy history scans together instead of back to back.
-    const [progress, pool] = await Promise.all([
-      this.loadCategoryProgress(userId, categoryId, lang),
-      this.coverage.loadQuestionPoolExposure(userId, categoryId, lang),
-    ]);
-    const readiness = await this.buildReadiness(userId, categoryId, progress);
+    // One history scan feeds both the subject cards and pool exposure; the
+    // remaining reads are independent of it and of each other.
+    const [catalog, history, totalQuestions, recentAttempts] =
+      await Promise.all([
+        this.coverage.loadCategorySubjectCatalog(categoryId, lang),
+        this.coverage.loadSubjectAggregatesWithExposure(userId, categoryId),
+        this.coverage.countQuestionsInCategory(categoryId, lang),
+        this.attempts.loadRecentCompletedAttempts(userId, categoryId),
+      ]);
+
+    const progress = this.toCategoryProgress(
+      categoryId,
+      catalog,
+      history.subjects,
+    );
+    const readiness = this.toReadiness(categoryId, progress, recentAttempts);
+    const pool = toPoolExposure(
+      history.distinctQuestionsAnswered,
+      totalQuestions,
+    );
 
     return {
       categoryId,
@@ -191,11 +208,21 @@ export class UserStatsService {
     categoryId: number,
     progress: CategoryProgress,
   ): Promise<ReadinessResponse> {
+    return this.toReadiness(
+      categoryId,
+      progress,
+      await this.attempts.loadRecentCompletedAttempts(userId, categoryId),
+    );
+  }
+
+  private toReadiness(
+    categoryId: number,
+    progress: CategoryProgress,
+    recentAttempts: { rows: RecentAttemptRow[]; completedTotal: number },
+  ): ReadinessResponse {
     const { display, rule, passRate, progressRows } = progress;
-    const [attemptRows, completedAttemptsTotal] = await Promise.all([
-      this.attempts.loadRecentCompletedAttempts(userId, categoryId),
-      this.attempts.countCompletedAttemptsForCategory(userId, categoryId),
-    ]);
+    const { rows: attemptRows, completedTotal: completedAttemptsTotal } =
+      recentAttempts;
 
     const readiness = computeReadiness({
       attempts: attemptRows.map((row) => ({
@@ -234,6 +261,18 @@ export class UserStatsService {
     categoryId: number,
     lang: string,
   ): Promise<CategoryProgress> {
+    const [catalog, subjectStats] = await Promise.all([
+      this.coverage.loadCategorySubjectCatalog(categoryId, lang),
+      this.coverage.loadSubjectAggregatesForCategory(userId, categoryId),
+    ]);
+    return this.toCategoryProgress(categoryId, catalog, subjectStats);
+  }
+
+  private toCategoryProgress(
+    categoryId: number,
+    catalog: CategorySubjectRow[],
+    subjectStats: SubjectAggregateRow[],
+  ): CategoryProgress {
     const display = getCategoryDisplayMeta(categoryId);
     if (!display) {
       throw new NotFoundException(`Category ${categoryId} not found`);
@@ -241,11 +280,6 @@ export class UserStatsService {
 
     const rule = resolveGeorgianExamRule({ categories: [categoryId] });
     const passRate = rule.minCorrectToPass / rule.questionCount;
-
-    const [catalog, subjectStats] = await Promise.all([
-      this.coverage.loadCategorySubjectCatalog(categoryId, lang),
-      this.coverage.loadSubjectAggregatesForCategory(userId, categoryId),
-    ]);
 
     const { countsBySubject, distinctBySubject } =
       this.indexSubjectAggregates(subjectStats);

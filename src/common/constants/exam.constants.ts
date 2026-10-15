@@ -49,3 +49,14 @@ export const MAX_HISTORY_PAGE_SIZE = 50;
 
 /** Default page size for history. */
 export const DEFAULT_HISTORY_PAGE_SIZE = 10;
+
+/**
+ * Bounds for the `count` override on POST /exam-attempts/start.
+ * Below the minimum a "pass" is meaningless for readiness; the maximum is the
+ * largest official ticket (C / D).
+ */
+export const MIN_EXAM_QUESTION_COUNT = 10;
+
+/** Width of the `chosenAnswer` column on user_answers / practice_answers. */
+export const MAX_CHOSEN_ANSWER_LENGTH = 500;
+export const MAX_EXAM_QUESTION_COUNT = 40;

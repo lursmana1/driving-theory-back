@@ -5,6 +5,7 @@ import {
   Body,
   Param,
   Query,
+  Header,
   Headers,
   ParseIntPipe,
   UseGuards,
@@ -14,11 +15,7 @@ import {
 import { ExamAttemptsService } from './exam-attempts.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { parseLang } from '../common/utils/parse-lang.util.js';
-import {
-  parseIdList,
-  parseCount,
-  parseNumericId,
-} from '../common/utils/parse-ids.util.js';
+import { parseIdList } from '../common/utils/parse-ids.util.js';
 import {
   MAX_STATS_LIMIT,
   MAX_HISTORY_PAGE_SIZE,
@@ -30,6 +27,9 @@ import {
   formatExamRuleResponse,
 } from '../common/utils/georgian-exam-rules.util.js';
 import { resolvePageParams } from '../common/utils/pagination.util.js';
+import { STATIC_PUBLIC_CACHE_CONTROL } from '../common/constants/http-cache.constants.js';
+import { StartAttemptQueryDto } from './dto/start-attempt-query.dto.js';
+import { SubmitAnswerDto } from './dto/submit-answer.dto.js';
 
 @Controller('exam-attempts')
 export class ExamAttemptsController {
@@ -37,6 +37,7 @@ export class ExamAttemptsController {
 
   /** Public — used by subject picker before login. */
   @Get('rules')
+  @Header('Cache-Control', STATIC_PUBLIC_CACHE_CONTROL)
   getExamRules(@Query('category') category?: string) {
     if (category == null || category.trim() === '') {
       return Object.entries(GEORGIAN_EXAM_RULES_BY_CATEGORY).map(([id, rule]) =>
@@ -57,18 +58,18 @@ export class ExamAttemptsController {
   @UseGuards(JwtAuthGuard)
   start(
     @Req() req: { user: { userId: number } },
+    @Query() query: StartAttemptQueryDto,
     @Query('lang') langQuery?: string,
     @Headers('accept-language') langHeader?: string,
     @Query('subjects') subjects?: string,
     @Query('categories') categories?: string,
-    @Query('count') count?: string,
     @Query('allSubjects') allSubjects?: string,
   ) {
     return this.attemptsService.startAttempt(req.user.userId, {
       lang: parseLang(langQuery, langHeader),
       subjects: parseIdList(subjects),
       categories: parseIdList(categories),
-      count: parseCount(count),
+      count: query.count,
       allSubjects: allSubjects === 'true',
     });
   }
@@ -87,18 +88,13 @@ export class ExamAttemptsController {
   submitAnswer(
     @Req() req: { user: { userId: number } },
     @Param('attemptId', ParseIntPipe) attemptId: number,
-    @Body('questionId') questionId: unknown,
-    @Body('chosenAnswer') chosenAnswer: string,
+    @Body() body: SubmitAnswerDto,
   ) {
-    const qId = parseNumericId(questionId);
-    if (qId === null) {
-      throw new BadRequestException('questionId must be a number');
-    }
     return this.attemptsService.submitAnswer(
       req.user.userId,
       attemptId,
-      qId,
-      chosenAnswer ?? '',
+      body.questionId,
+      body.chosenAnswer ?? '',
     );
   }
 

@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { PracticeAnswer } from './entities/practice-answer.entity';
 import { Question } from '../questions/entities/question.entity';
 import { DEFAULT_LANG } from '../common/constants/lang.constants.js';
+import { isUniqueViolation } from '../common/utils/pg-error.util.js';
 
 export type RecordPracticeInput = {
   questionId: number;
@@ -34,6 +35,20 @@ export class PracticeAnswersService {
    * Prefer calling only when the user answers (chosenAnswer set).
    */
   async record(
+    userId: number,
+    input: RecordPracticeInput,
+  ): Promise<RecordPracticeResult> {
+    try {
+      return await this.recordOnce(userId, input);
+    } catch (err) {
+      // Two requests for the same question both saw "no row yet"; the loser
+      // hits the unique constraint. The row exists now, so retry as an update.
+      if (!isUniqueViolation(err)) throw err;
+      return this.recordOnce(userId, input);
+    }
+  }
+
+  private async recordOnce(
     userId: number,
     input: RecordPracticeInput,
   ): Promise<RecordPracticeResult> {

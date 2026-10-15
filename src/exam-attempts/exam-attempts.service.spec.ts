@@ -107,7 +107,10 @@ describe('ExamAttemptsService', () => {
           correct: expected,
         });
         expect(manager.query).toHaveBeenCalledTimes(1);
-        expect(manager.query.mock.calls[0][0]).toBe(SUBMIT_ANSWER_SQL);
+        expect(manager.query).toHaveBeenCalledWith(
+          SUBMIT_ANSWER_SQL,
+          expect.any(Array),
+        );
         expect(queries.findAttemptForUser).not.toHaveBeenCalled();
       },
     );

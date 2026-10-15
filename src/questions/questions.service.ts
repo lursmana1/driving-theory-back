@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Question } from './entities/question.entity';
@@ -41,13 +41,15 @@ export class QuestionsService {
     const baseQb = this.questionRepo.createQueryBuilder('q');
     applyQuestionFilters(baseQb, 'q', { lang, category, subjects });
 
-    const total = await baseQb.getCount();
-    const rows = await baseQb
-      .clone()
-      .orderBy('q.id', 'ASC')
-      .skip((page - 1) * size)
-      .take(size)
-      .getMany();
+    const [total, rows] = await Promise.all([
+      baseQb.getCount(),
+      baseQb
+        .clone()
+        .orderBy('q.id', 'ASC')
+        .skip((page - 1) * size)
+        .take(size)
+        .getMany(),
+    ]);
 
     const data = rows.map(stripLangField);
 
@@ -80,11 +82,11 @@ export class QuestionsService {
     });
   }
 
-  async findOne(id: string, lang: string) {
-    const numId = Number(id);
-    if (!Number.isFinite(numId)) {
-      return null;
+  async findOne(id: number, lang: string): Promise<Question> {
+    const question = await this.questionRepo.findOne({ where: { id, lang } });
+    if (!question) {
+      throw new NotFoundException(`Question ${id} (${lang}) not found`);
     }
-    return this.questionRepo.findOne({ where: { id: numId, lang } });
+    return question;
   }
 }

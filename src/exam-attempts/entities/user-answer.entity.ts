@@ -6,10 +6,12 @@ import {
   ManyToOne,
   JoinColumn,
   Index,
+  Unique,
 } from 'typeorm';
 import { ExamAttempt } from './exam-attempt.entity';
 
 @Entity('user_answers')
+@Unique('uq_user_answers_attempt_question', ['attemptId', 'questionId'])
 @Index('idx_user_answers_attempt', ['attemptId'])
 @Index('idx_user_answers_attempt_subject', ['attemptId', 'subject'])
 @Index('idx_user_answers_question', ['questionId'])

@@ -16,4 +16,14 @@ describe('SUBMIT_ANSWER_SQL', () => {
     expect(tail).toContain('LEFT JOIN inserted');
     expect(tail).toContain('LEFT JOIN completed');
   });
+
+  it('turns a lost insert race into already_answered, not ok', () => {
+    expect(SUBMIT_ANSWER_SQL).toContain('ON CONFLICT DO NOTHING');
+    const statusCase = SUBMIT_ANSWER_SQL.slice(
+      SUBMIT_ANSWER_SQL.lastIndexOf('CASE'),
+    );
+    expect(
+      statusCase.indexOf('NOT EXISTS (SELECT 1 FROM inserted)'),
+    ).toBeLessThan(statusCase.indexOf("ELSE 'ok'"));
+  });
 });

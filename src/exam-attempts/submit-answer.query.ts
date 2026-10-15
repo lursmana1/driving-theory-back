@@ -87,6 +87,11 @@ inserted AS (
     AND g.in_ticket
     AND NOT g.already_answered
     AND g.question_pk IS NOT NULL
+  -- A concurrent submit of the same question passes the already_answered
+  -- check above; the unique constraint on ("attemptId", "questionId") makes
+  -- the loser a no-op. No conflict target, so this is valid before the
+  -- constraint exists too.
+  ON CONFLICT DO NOTHING
   RETURNING "attemptId", correct
 ),
 completed AS (
@@ -113,6 +118,7 @@ SELECT
     WHEN NOT g.in_ticket THEN 'not_in_ticket'
     WHEN g.already_answered THEN 'already_answered'
     WHEN g.question_pk IS NULL THEN 'question_not_found'
+    WHEN NOT EXISTS (SELECT 1 FROM inserted) THEN 'already_answered'
     ELSE 'ok'
   END AS status,
   g.is_correct AS correct

@@ -30,7 +30,10 @@ export class QuestionUpsertWriter {
     result: GeminiResponse,
   ): Promise<void> {
     const update: Record<string, string> = { ai_tutor: result.ka_tutor };
-    if (isPlaceholderExplanation(ka.question_explained)) {
+    if (
+      isPlaceholderExplanation(ka.question_explained) &&
+      result.ka_explained.trim() !== ''
+    ) {
       update.question_explained = result.ka_explained;
     }
     await this.questionRepo.update({ id, lang: 'ka' }, update);

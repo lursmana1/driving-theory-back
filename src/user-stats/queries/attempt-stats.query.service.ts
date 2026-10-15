@@ -1,16 +1,13 @@
 import { Injectable } from '@nestjs/common';
-import { InjectEntityManager, InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, Repository } from 'typeorm';
-import { ExamAttempt } from '../../exam-attempts/entities/exam-attempt.entity';
+import { InjectEntityManager } from '@nestjs/typeorm';
+import { EntityManager } from 'typeorm';
 import {
   READINESS_MAX_ATTEMPTS,
   EARLY_FAIL_WINDOW,
 } from '../../common/constants/exam.constants.js';
 import { resolveGeorgianExamRule } from '../../common/utils/georgian-exam-rules.util.js';
 import {
-  attemptCategoryMatchParams,
   attemptMatchesCategorySql,
-  attemptMatchesCategoryWhere,
   categoryFilterJson,
   liveQuestionJoinSql,
 } from '../../common/utils/attempt-category-filter.util.js';
@@ -23,36 +20,17 @@ export class AttemptStatsQueryService {
   constructor(
     @InjectEntityManager()
     private readonly manager: EntityManager,
-    @InjectRepository(ExamAttempt)
-    private readonly attemptRepo: Repository<ExamAttempt>,
   ) {}
-
-  async countCompletedAttemptsForCategory(
-    userId: number,
-    categoryId: number,
-  ): Promise<number> {
-    const row = await this.attemptRepo
-      .createQueryBuilder('t')
-      .select('COUNT(*)', 'count')
-      .where('t.userId = :userId', { userId })
-      .andWhere('t.completedAt IS NOT NULL')
-      .andWhere(
-        attemptMatchesCategoryWhere('t', categoryId),
-        attemptCategoryMatchParams(categoryId),
-      )
-      .getRawOne<{ count: string }>();
-
-    return parsePgInt(row?.count);
-  }
 
   /**
    * Most recent completed attempts with per-attempt score and early-window
-   * wrong count. Only live questions are graded.
+   * wrong count, plus the total of all completed attempts in the category.
+   * Only live questions are graded.
    */
   async loadRecentCompletedAttempts(
     userId: number,
     categoryId: number,
-  ): Promise<RecentAttemptRow[]> {
+  ): Promise<{ rows: RecentAttemptRow[]; completedTotal: number }> {
     const categoryFilter = categoryFilterJson(categoryId);
     const fallbackThreshold = resolveGeorgianExamRule({
       categories: [categoryId],
@@ -66,16 +44,20 @@ export class AttemptStatsQueryService {
         correctCount: string;
         answeredCount: string;
         earlyWrongCount: string;
+        completedTotal: string;
       }[]
     >(
       `
-      WITH recent AS (
+      WITH completed AS (
         SELECT t.id, t."minCorrectToPass", t.passed, t."completedAt"
         FROM exam_attempts t
         WHERE t."userId" = $1
           AND t."completedAt" IS NOT NULL
           AND ${attemptMatchesCategorySql('t', '$2', '$3')}
-        ORDER BY t."completedAt" DESC
+      ),
+      recent AS (
+        SELECT * FROM completed
+        ORDER BY completed."completedAt" DESC
         LIMIT $4
       ),
       answer_stats AS (
@@ -115,7 +97,8 @@ export class AttemptStatsQueryService {
         r.passed,
         COALESCE(s."correctCount", 0)::text AS "correctCount",
         COALESCE(s."answeredCount", 0)::text AS "answeredCount",
-        COALESCE(e."earlyWrongCount", 0)::text AS "earlyWrongCount"
+        COALESCE(e."earlyWrongCount", 0)::text AS "earlyWrongCount",
+        (SELECT COUNT(*) FROM completed)::text AS "completedTotal"
       FROM recent r
       LEFT JOIN answer_stats s ON s."attemptId" = r.id
       LEFT JOIN early e ON e."attemptId" = r.id
@@ -130,12 +113,16 @@ export class AttemptStatsQueryService {
       ],
     );
 
-    return rows.map((row) => ({
-      correctCount: parsePgInt(row.correctCount),
-      minCorrectToPass: parsePgInt(row.minCorrectToPass, fallbackThreshold),
-      passed: parsePgBoolean(row.passed),
-      answeredCount: parsePgInt(row.answeredCount),
-      earlyWrongCount: parsePgInt(row.earlyWrongCount),
-    }));
+    return {
+      // No recent rows means no completed attempts at all, so 0 is exact.
+      completedTotal: parsePgInt(rows[0]?.completedTotal),
+      rows: rows.map((row) => ({
+        correctCount: parsePgInt(row.correctCount),
+        minCorrectToPass: parsePgInt(row.minCorrectToPass, fallbackThreshold),
+        passed: parsePgBoolean(row.passed),
+        answeredCount: parsePgInt(row.answeredCount),
+        earlyWrongCount: parsePgInt(row.earlyWrongCount),
+      })),
+    };
   }
 }

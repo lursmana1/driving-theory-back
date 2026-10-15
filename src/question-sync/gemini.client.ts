@@ -1,7 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import type { GeminiResponse } from './question-sync.types.js';
+import {
+  GEMINI_OPTIONAL_KEYS,
+  GEMINI_REQUIRED_KEYS,
+  type GeminiResponse,
+} from './question-sync.types.js';
 
 const MAX_RETRIES = 5;
 const DEFAULT_RETRY_DELAY_MS = 15_000;
@@ -52,6 +56,39 @@ export function getRetryDelayMs(err: unknown): number {
   }
 
   return DEFAULT_RETRY_DELAY_MS;
+}
+
+/**
+ * The model's JSON is untrusted: a missing or blank required field would
+ * overwrite live question text with nothing. Throws so the id is left untouched.
+ */
+export function parseGeminiResponse(text: string): GeminiResponse {
+  const parsed: unknown = JSON.parse(text.trim());
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('Gemini response is not a JSON object');
+  }
+
+  const record = parsed as Record<string, unknown>;
+  const invalid = [
+    ...GEMINI_REQUIRED_KEYS.filter((key) => {
+      const value = record[key];
+      return typeof value !== 'string' || value.trim() === '';
+    }),
+    ...GEMINI_OPTIONAL_KEYS.filter((key) => {
+      const value = record[key];
+      return value != null && typeof value !== 'string';
+    }),
+  ];
+  if (invalid.length > 0) {
+    throw new Error(
+      `Gemini response has missing or invalid fields: ${invalid.join(', ')}`,
+    );
+  }
+
+  return Object.fromEntries([
+    ...GEMINI_REQUIRED_KEYS.map((key) => [key, record[key]]),
+    ...GEMINI_OPTIONAL_KEYS.map((key) => [key, record[key] ?? '']),
+  ]) as unknown as GeminiResponse;
 }
 
 export function sleep(ms: number): Promise<void> {
@@ -112,7 +149,7 @@ export class GeminiClient {
       if (!text) {
         throw new Error('Empty response from Gemini');
       }
-      return JSON.parse(text.trim()) as GeminiResponse;
+      return parseGeminiResponse(text);
     } catch (err) {
       if (statusOf(err) === 404) {
         this.logger.error(

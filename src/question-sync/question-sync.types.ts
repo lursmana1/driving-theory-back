@@ -25,6 +25,33 @@ export interface GeminiResponse {
   en_tutor: string;
 }
 
+/** Fields that must come back as non-empty strings before anything is written. */
+export const GEMINI_REQUIRED_KEYS = [
+  'ru_question',
+  'en_question',
+  'ru_answer_1',
+  'ru_answer_2',
+  'en_answer_1',
+  'en_answer_2',
+  'ru_explained',
+  'en_explained',
+  'ka_tutor',
+  'ru_tutor',
+  'en_tutor',
+] as const satisfies readonly (keyof GeminiResponse)[];
+
+/**
+ * Fields that may be blank: questions with fewer than four options, and the
+ * Georgian explanation (only used to replace a placeholder).
+ */
+export const GEMINI_OPTIONAL_KEYS = [
+  'ka_explained',
+  'ru_answer_3',
+  'ru_answer_4',
+  'en_answer_3',
+  'en_answer_4',
+] as const satisfies readonly (keyof GeminiResponse)[];
+
 export type QuestionRow = {
   id: number;
   lang: string;

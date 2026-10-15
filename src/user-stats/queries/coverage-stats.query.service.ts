@@ -21,6 +21,20 @@ import type {
   SubjectAggregateRow,
 } from '../user-stats.types.js';
 
+export function toPoolExposure(
+  distinctQuestionsAnswered: number,
+  totalQuestionsInCategory: number,
+): QuestionPoolExposure {
+  return {
+    distinctQuestionsAnswered,
+    totalQuestionsInCategory,
+    exposureRate:
+      totalQuestionsInCategory > 0
+        ? round3(distinctQuestionsAnswered / totalQuestionsInCategory)
+        : 0,
+  };
+}
+
 /** Topic catalog and how much of the question pool the user has covered. */
 @Injectable()
 export class CoverageStatsQueryService {
@@ -79,6 +93,94 @@ export class CoverageStatsQueryService {
     }));
   }
 
+  /**
+   * Subject aggregates and the distinct-questions-seen count from a single
+   * scan of the answer history. The summary needs both; running
+   * `loadSubjectAggregatesForCategory` and `loadQuestionPoolExposure` side by
+   * side would read the same rows twice.
+   */
+  async loadSubjectAggregatesWithExposure(
+    userId: number,
+    categoryId: number,
+  ): Promise<{
+    subjects: SubjectAggregateRow[];
+    distinctQuestionsAnswered: number;
+  }> {
+    const sp = new SqlParams();
+    const userPh = sp.add(userId);
+    const { filterPh, categoryPh: catPh } = bindCategoryFilter(sp, categoryId);
+    const masteryPh = sp.add(QUESTION_MASTERY_CORRECT_RATIO);
+
+    const rows = await this.manager.query<
+      {
+        distinctSeen: string;
+        subjectId: string | null;
+        correctCount: string | null;
+        wrongCount: string | null;
+        distinctQuestions: string | null;
+      }[]
+    >(
+      `
+      WITH ${combinedGradedAnswersCte('seen', {
+        userIdPlaceholder: userPh,
+        categoryFilterPlaceholder: filterPh,
+        categoryIdPlaceholder: catPh,
+        includeSubject: true,
+        requireSubject: false,
+        gradedPracticeOnly: false,
+      })},
+      graded AS (
+        SELECT * FROM seen
+        WHERE seen.correct IS NOT NULL AND seen.subject IS NOT NULL
+      ),
+      ${perQuestionRateCte('graded', 'per_q', true)},
+      ${masteryClassifiedCte('per_q', 'classified', masteryPh)},
+      by_subject AS (
+        SELECT
+          classified.subject AS "subjectId",
+          SUM(CASE WHEN classified."isCorrect" = true THEN 1 ELSE 0 END)::int AS "correctCount",
+          SUM(CASE WHEN classified."isCorrect" = false THEN 1 ELSE 0 END)::int AS "wrongCount",
+          COUNT(*)::int AS "distinctQuestions"
+        FROM classified
+        GROUP BY classified.subject
+      ),
+      exposure AS (
+        SELECT COUNT(DISTINCT seen."questionId")::int AS "distinctSeen" FROM seen
+      )
+      SELECT e."distinctSeen", s.*
+      FROM exposure e
+      LEFT JOIN by_subject s ON TRUE
+      `,
+      sp.all(),
+    );
+
+    return {
+      distinctQuestionsAnswered: parsePgInt(rows[0]?.distinctSeen),
+      subjects: rows
+        .filter((row) => row.subjectId != null)
+        .map((row) => ({
+          subjectId: parsePgInt(row.subjectId),
+          correctCount: parsePgInt(row.correctCount),
+          wrongCount: parsePgInt(row.wrongCount),
+          distinctQuestions: parsePgInt(row.distinctQuestions),
+        })),
+    };
+  }
+
+  /** Live question count for a category in one language. */
+  async countQuestionsInCategory(
+    categoryId: number,
+    lang: string,
+  ): Promise<number> {
+    const row = await this.questionRepo
+      .createQueryBuilder('q')
+      .select('COUNT(*)', 'count')
+      .where('q.lang = :lang', { lang })
+      .andWhere(':categoryId = ANY(q.categories)', { categoryId })
+      .getRawOne<{ count: string }>();
+    return parsePgInt(row?.count);
+  }
+
   /** Distinct questions seen (graded or not) vs the category pool size. */
   async loadQuestionPoolExposure(
     userId: number,
@@ -89,7 +191,7 @@ export class CoverageStatsQueryService {
     const userPh = sp.add(userId);
     const { filterPh, categoryPh: catPh } = bindCategoryFilter(sp, categoryId);
 
-    const [answeredRow, categoryCountRow] = await Promise.all([
+    const [answeredRow, totalQuestionsInCategory] = await Promise.all([
       this.manager.query<{ count: string }[]>(
         `
         WITH ${combinedGradedAnswersCte('combined', {
@@ -103,26 +205,13 @@ export class CoverageStatsQueryService {
         `,
         sp.all(),
       ),
-      this.questionRepo
-        .createQueryBuilder('q')
-        .select('COUNT(*)', 'count')
-        .where('q.lang = :lang', { lang })
-        .andWhere(':categoryId = ANY(q.categories)', { categoryId })
-        .getRawOne<{ count: string }>(),
+      this.countQuestionsInCategory(categoryId, lang),
     ]);
 
-    const totalQuestionsInCategory = parsePgInt(categoryCountRow?.count);
-    const distinctQuestionsAnswered = parsePgInt(answeredRow[0]?.count);
-    const exposureRate =
-      totalQuestionsInCategory > 0
-        ? round3(distinctQuestionsAnswered / totalQuestionsInCategory)
-        : 0;
-
-    return {
-      distinctQuestionsAnswered,
+    return toPoolExposure(
+      parsePgInt(answeredRow[0]?.count),
       totalQuestionsInCategory,
-      exposureRate,
-    };
+    );
   }
 
   /** Category subject catalog, with counts recomputed from the live question pool. */

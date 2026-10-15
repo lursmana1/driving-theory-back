@@ -72,20 +72,23 @@ export class ExamAttemptsService {
       createdAt.getTime() + EXAM_DURATION_MINUTES * 60 * 1000,
     );
 
-    const saved = await this.attemptRepo.save(
-      this.attemptRepo.create({
-        userId,
-        questionIds,
-        lang,
-        createdAt,
-        endDate,
-        minCorrectToPass: examRule.minCorrectToPass,
-        categories: options.categories ?? [],
-        subjects: options.subjects ?? [],
-      }),
-    );
-
-    const questions = await this.queries.findQuestionsByIds(questionIds, lang);
+    // The ticket is already chosen, so the insert and the question read do
+    // not depend on each other.
+    const [saved, questions] = await Promise.all([
+      this.attemptRepo.save(
+        this.attemptRepo.create({
+          userId,
+          questionIds,
+          lang,
+          createdAt,
+          endDate,
+          minCorrectToPass: examRule.minCorrectToPass,
+          categories: options.categories ?? [],
+          subjects: options.subjects ?? [],
+        }),
+      ),
+      this.queries.findQuestionsByIds(questionIds, lang),
+    ]);
 
     const startedAt = saved.createdAt ?? createdAt;
     const deadline = saved.endDate ?? endDate;

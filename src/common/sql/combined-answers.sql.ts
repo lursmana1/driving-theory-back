@@ -8,6 +8,8 @@ export type CombinedAnswersOptions = {
   categoryIdPlaceholder?: string;
   /** Include a.subject / practice subject (required for subject aggregates). */
   includeSubject?: boolean;
+  /** Drop rows without a subject. Defaults to `includeSubject`. */
+  requireSubject?: boolean;
   /** Only graded practice rows (correct IS NOT NULL). Default true. */
   gradedPracticeOnly?: boolean;
 };
@@ -25,6 +27,7 @@ export function combinedGradedAnswersCte(
     categoryFilterPlaceholder,
     categoryIdPlaceholder,
     includeSubject = false,
+    requireSubject = includeSubject,
     gradedPracticeOnly = true,
   } = options;
 
@@ -32,8 +35,8 @@ export function combinedGradedAnswersCte(
   const practiceSubjectSelect = includeSubject
     ? `COALESCE(p.subject, lq.subject) AS subject,`
     : '';
-  const examSubjectWhere = includeSubject ? `AND a.subject IS NOT NULL` : '';
-  const practiceSubjectWhere = includeSubject
+  const examSubjectWhere = requireSubject ? `AND a.subject IS NOT NULL` : '';
+  const practiceSubjectWhere = requireSubject
     ? `AND COALESCE(p.subject, lq.subject) IS NOT NULL`
     : '';
 
