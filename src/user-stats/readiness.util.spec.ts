@@ -1,11 +1,55 @@
 import { computeReadiness } from './readiness.util';
+import { estimateAnswerAccuracy, passProbability } from './readiness.scoring';
+
+describe('passProbability', () => {
+  it('matches the binomial tail for a 30-question ticket', () => {
+    // 90% accuracy: B allows 5 wrong, A allows 3
+    expect(passProbability(0.9, 30, 5)).toBeCloseTo(0.927, 3);
+    expect(passProbability(0.9, 30, 3)).toBeCloseTo(0.647, 3);
+  });
+
+  it('is 1 at perfect accuracy and 0 at none', () => {
+    expect(passProbability(1, 30, 5)).toBe(1);
+    expect(passProbability(0, 30, 5)).toBe(0);
+  });
+});
+
+describe('estimateAnswerAccuracy', () => {
+  it('weights newer exams more', () => {
+    const good = {
+      correctCount: 29,
+      minCorrectToPass: 25,
+      passed: true,
+      answeredCount: 30,
+    };
+    const bad = {
+      correctCount: 9,
+      minCorrectToPass: 25,
+      passed: false,
+      answeredCount: 15,
+    };
+    expect(estimateAnswerAccuracy([good, bad])).toBeGreaterThan(
+      estimateAnswerAccuracy([bad, good]),
+    );
+  });
+
+  it('counts only answers given when an exam was cut short', () => {
+    const cut = {
+      correctCount: 9,
+      minCorrectToPass: 25,
+      passed: false,
+      answeredCount: 15,
+    };
+    // 9/15 = 60%, shrunk towards the 75% prior — not 9/30
+    const accuracy = estimateAnswerAccuracy([cut]);
+    expect(accuracy).toBeGreaterThan(0.6);
+    expect(accuracy).toBeLessThan(0.75);
+  });
+});
 
 describe('computeReadiness', () => {
-  const base = {
-    subjectsTotal: 32,
-    questionCount: 30,
-    passRate: 25 / 30,
-  };
+  const B = { questionCount: 30, minCorrectToPass: 25, passRate: 25 / 30 };
+  const A = { questionCount: 30, minCorrectToPass: 27, passRate: 27 / 30 };
 
   const uncovered = (id: number) => ({
     subjectId: id,
@@ -23,21 +67,37 @@ describe('computeReadiness', () => {
     totalQuestions: 40,
   });
 
-  it('returns none confidence with no completed attempts', () => {
+  /** 21 of 32 topics covered (66%) — just over the 65% coverage gate. */
+  const gateCovered = [
+    ...Array.from({ length: 21 }, (_, i) => covered(i + 1)),
+    ...Array.from({ length: 11 }, (_, i) => uncovered(i + 22)),
+  ];
+
+  const pass = (correctCount: number) => ({
+    correctCount,
+    minCorrectToPass: 25,
+    passed: true,
+    answeredCount: 30,
+  });
+
+  const repeat = <T>(n: number, item: T): T[] =>
+    Array.from({ length: n }, () => item);
+
+  it('returns none confidence with no full exams', () => {
     const result = computeReadiness({
-      ...base,
+      ...B,
       attempts: [],
-      subjects: [],
+      subjects: gateCovered,
+      subjectsTotal: 32,
     });
     expect(result.confidence).toBe('none');
     expect(result.readinessScore).toBe(0);
+    expect(result.readyForExam).toBe(false);
   });
 
   it('keeps score low when recent exams are early fails', () => {
-    const subjects = Array.from({ length: 20 }, (_, i) => uncovered(i + 1));
-
     const result = computeReadiness({
-      ...base,
+      ...B,
       attempts: [
         {
           correctCount: 2,
@@ -54,128 +114,123 @@ describe('computeReadiness', () => {
           earlyWrongCount: 6,
         },
       ],
-      subjects,
-      completedAttemptsTotal: 8,
+      subjects: [],
+      subjectsTotal: 32,
     });
-
-    expect(result.subjectsCovered).toBe(0);
     expect(result.readinessScore).toBeLessThan(20);
+    expect(result.earlyFailCount).toBe(2);
+    expect(result.examAccuracy).toBe(0);
   });
 
-  it('strong recent streak scores high even with few topics covered', () => {
-    // Score is ~90% recent form + 10% coverage — not crushed by 5/32 topics
-    const subjects = [
-      ...Array.from({ length: 5 }, (_, i) => covered(i + 1)),
-      ...Array.from({ length: 27 }, (_, i) => uncovered(i + 6)),
-    ];
-    const strongPass = {
-      correctCount: 29,
-      minCorrectToPass: 25,
-      passed: true,
-      answeredCount: 30,
-    };
-
+  it('marks a consistent passer ready', () => {
+    // Old formula capped this user at 89 → never ready.
     const result = computeReadiness({
-      ...base,
-      attempts: Array.from({ length: 20 }, () => strongPass),
-      subjects,
+      ...B,
+      attempts: repeat(20, pass(28)),
+      subjects: gateCovered,
+      subjectsTotal: 32,
       completedAttemptsTotal: 24,
     });
-
-    expect(result.subjectsCovered).toBe(5);
+    expect(result.readinessScore).toBeGreaterThanOrEqual(95);
+    expect(result.confidence).toBe('high');
     expect(result.completedAttemptsUsed).toBe(20);
-    expect(result.readinessScore).toBeGreaterThanOrEqual(85);
-    expect(result.readyForExam).toBe(false); // coverage < 40%
-  });
-
-  it('heavily discounts early fails', () => {
-    const earlyFail = computeReadiness({
-      ...base,
-      attempts: [
-        {
-          correctCount: 5,
-          minCorrectToPass: 25,
-          passed: false,
-          answeredCount: 10,
-          earlyWrongCount: 5,
-        },
-      ],
-      subjects: [],
-    });
-    expect(earlyFail.earlyFailCount).toBe(1);
-    expect(earlyFail.examAccuracy).toBeLessThan(0.1);
-  });
-
-  it('readyForExam needs pass + high score + covered topics', () => {
-    const subjects = Array.from({ length: 24 }, (_, i) => ({
-      ...covered(i + 1),
-      correctCount: 24,
-      wrongCount: 1,
-    }));
-
-    const result = computeReadiness({
-      ...base,
-      subjectsTotal: 24,
-      attempts: [
-        { correctCount: 28, minCorrectToPass: 25, passed: true },
-        { correctCount: 27, minCorrectToPass: 25, passed: true },
-        { correctCount: 26, minCorrectToPass: 25, passed: true },
-      ],
-      subjects,
-      completedAttemptsTotal: 10,
-    });
-
-    expect(result.practicePart).toBe(1);
-    expect(result.coverageFactor).toBe(1);
-    expect(result.readinessScore).toBeGreaterThanOrEqual(90);
+    expect(result.completedAttemptsTotal).toBe(24);
     expect(result.readyForExam).toBe(true);
   });
 
-  it('uses recent exam answers for answerAccuracy, not lifetime subject totals', () => {
-    const subjects = Array.from({ length: 20 }, (_, i) => ({
-      ...uncovered(i + 1),
-      correctCount: 1,
-      wrongCount: 99,
-    }));
-
-    const result = computeReadiness({
-      ...base,
-      attempts: [
-        {
-          correctCount: 28,
-          minCorrectToPass: 25,
-          passed: true,
-          answeredCount: 30,
-        },
-        {
-          correctCount: 27,
-          minCorrectToPass: 25,
-          passed: true,
-          answeredCount: 30,
-        },
-      ],
-      subjects,
-      completedAttemptsTotal: 40,
+  it('scores the same accuracy lower on a stricter pass mark', () => {
+    const attempts = repeat(10, pass(27));
+    const onB = computeReadiness({
+      ...B,
+      attempts,
+      subjects: [],
+      subjectsTotal: 32,
     });
-
-    // 55/60 from recent exams — not the lifetime 1/100 subject ratio
-    expect(result.answerAccuracy).toBeCloseTo(55 / 60, 2);
-    expect(result.completedAttemptsUsed).toBe(2);
+    const onA = computeReadiness({
+      ...A,
+      attempts: attempts.map((a) => ({ ...a, minCorrectToPass: 27 })),
+      subjects: [],
+      subjectsTotal: 32,
+    });
+    expect(onB.answerAccuracy).toBe(onA.answerAccuracy);
+    expect(onB.readinessScore - onA.readinessScore).toBeGreaterThan(25);
   });
 
-  it('one pass alone does not mark ready without topic coverage', () => {
-    const subjects = Array.from({ length: 4 }, (_, i) => uncovered(i + 1));
-
+  it('needs the last three full exams passed', () => {
     const result = computeReadiness({
-      ...base,
+      ...B,
       attempts: [
-        { correctCount: 26, minCorrectToPass: 25, passed: true },
-        { correctCount: 14, minCorrectToPass: 25, passed: false },
+        {
+          correctCount: 9,
+          minCorrectToPass: 25,
+          passed: false,
+          answeredCount: 15,
+        },
+        ...repeat(10, pass(30)),
       ],
-      subjects,
+      subjects: gateCovered,
+      subjectsTotal: 32,
     });
-
-    expect(result.lastAttemptPassed).toBe(true);
+    expect(result.lastAttemptPassed).toBe(false);
     expect(result.readyForExam).toBe(false);
+  });
+
+  it('does not mark one perfect exam ready', () => {
+    const result = computeReadiness({
+      ...B,
+      attempts: [pass(30)],
+      subjects: gateCovered,
+      subjectsTotal: 32,
+    });
+    expect(result.confidence).toBe('low');
+    expect(result.readyForExam).toBe(false);
+  });
+
+  it('keeps topic coverage as a gate, not part of the score', () => {
+    const attempts = repeat(10, pass(29));
+    const under = computeReadiness({
+      ...B,
+      attempts,
+      // 20 of 32 = 62.5%, just under the 65% gate
+      subjects: [...repeat(20, covered(1)), ...repeat(12, uncovered(2))],
+      subjectsTotal: 32,
+    });
+    const over = computeReadiness({
+      ...B,
+      attempts,
+      subjects: gateCovered,
+      subjectsTotal: 32,
+    });
+    expect(under.readinessScore).toBe(over.readinessScore);
+    expect(under.readyForExam).toBe(false);
+    expect(over.readyForExam).toBe(true);
+  });
+
+  it('bases confidence on answers, not on the number of attempts', () => {
+    const oneAnswerQuits = repeat(20, {
+      correctCount: 0,
+      minCorrectToPass: 25,
+      passed: false,
+      answeredCount: 1,
+    });
+    const result = computeReadiness({
+      ...B,
+      attempts: oneAnswerQuits,
+      subjects: [],
+      subjectsTotal: 32,
+    });
+    expect(result.completedAttemptsUsed).toBe(20);
+    expect(result.confidence).toBe('low');
+  });
+
+  it('falls back to lifetime subject accuracy before any full exam', () => {
+    const result = computeReadiness({
+      ...B,
+      attempts: [],
+      subjects: [{ ...uncovered(1), correctCount: 3, wrongCount: 1 }],
+      subjectsTotal: 32,
+    });
+    expect(result.answerAccuracy).toBe(0.75);
+    expect(result.readinessScore).toBe(0);
   });
 });

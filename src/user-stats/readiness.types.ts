@@ -17,24 +17,30 @@ export type ReadinessSubjectInput = {
 };
 
 export type ComputeReadinessInput = {
+  /** Full exams only (all subjects, official ticket size), most recent first. */
   attempts: ReadinessAttemptInput[];
   subjects: ReadinessSubjectInput[];
   subjectsTotal: number;
   questionCount: number;
+  minCorrectToPass: number;
   passRate: number;
   minSubjectAttempts?: number;
   completedAttemptsTotal?: number;
   recentExamLimit?: number;
   readyScoreThreshold?: number;
   readyPracticeThreshold?: number;
+  readyPassStreak?: number;
 };
 
 export type ReadinessResult = {
+  /** Chance to pass an official ticket, 0–100. */
   readinessScore: number;
   confidence: ReadinessConfidence;
   readyForExam: boolean;
   label: string;
+  /** Share of the recent full exams that were passed (0–1). */
   examAccuracy: number;
+  /** Estimated per-question accuracy (0–1) behind the score. */
   answerAccuracy: number;
   /** Covered topics / total (0–1). */
   practicePart: number;

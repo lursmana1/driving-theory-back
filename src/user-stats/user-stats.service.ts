@@ -241,6 +241,7 @@ export class UserStatsService {
       })),
       subjectsTotal: progressRows.length,
       questionCount: rule.questionCount,
+      minCorrectToPass: rule.minCorrectToPass,
       passRate,
       minSubjectAttempts: MIN_SUBJECT_ATTEMPTS_FOR_STATS,
       completedAttemptsTotal,

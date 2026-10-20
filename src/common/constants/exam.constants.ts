@@ -32,17 +32,20 @@ export const SUBJECT_COVERAGE_RATIO = 0.7;
  */
 export const QUESTION_MASTERY_CORRECT_RATIO = 0.6;
 
-/** Completed attempts used for readiness exam + recent answer accuracy (most recent first). */
+/** Full exams used for the readiness score (most recent first). */
 export const READINESS_MAX_ATTEMPTS = 20;
 
 /** Answers from the start of an attempt that count towards an "early fail". */
 export const EARLY_FAIL_WINDOW = 10;
 
-/** Readiness score >= this + last pass + topic coverage → readyForExam. */
-export const READINESS_READY_SCORE_THRESHOLD = 90;
+/** Readiness score (pass probability, 0–100) >= this is one readyForExam gate. */
+export const READINESS_READY_SCORE_THRESHOLD = 85;
+
+/** readyForExam also needs this many most recent full exams, all passed. */
+export const READINESS_READY_PASS_STREAK = 3;
 
 /** Minimum share of topics covered for readyForExam (not full bank). */
-export const READINESS_READY_PRACTICE_THRESHOLD = 0.4;
+export const READINESS_READY_PRACTICE_THRESHOLD = 0.65;
 
 /** Max page size for history. */
 export const MAX_HISTORY_PAGE_SIZE = 50;
