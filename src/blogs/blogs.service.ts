@@ -3,6 +3,11 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Blog } from './entities/blog.entity';
 import { S3Service } from '../s3/s3.service';
+import { parsePgInt } from '../common/utils/pg-row.util';
+import {
+  INCREMENT_BLOG_VIEWS_SQL,
+  IncrementBlogViewsRow,
+} from './blog-views.query';
 
 export type BlogWithCreatorName = Omit<Blog, 'creator'> & {
   creator: { name: string } | null;
@@ -89,9 +94,21 @@ export class BlogsService {
       description: blog.description,
       content: blog.content,
       imageUrl: blog.imageUrl,
+      viewsCount: blog.viewsCount ?? 0,
       createdAt: blog.createdAt,
       creator: blog.creator ? { name: blog.creator.name } : null,
     };
+  }
+
+  async recordView(id: number): Promise<{ viewsCount: number }> {
+    const rows = await this.blogsRepository.query<IncrementBlogViewsRow[]>(
+      INCREMENT_BLOG_VIEWS_SQL,
+      [id],
+    );
+    if (rows.length === 0) {
+      throw new NotFoundException(`Blog with ID ${id} not found`);
+    }
+    return { viewsCount: parsePgInt(rows[0].viewsCount) };
   }
 
   async update(

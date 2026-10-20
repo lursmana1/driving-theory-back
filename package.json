@@ -38,6 +38,7 @@
     "db:backfill-exam-categories": "ts-node -r tsconfig-paths/register scripts/backfill-exam-attempt-categories.ts",
     "db:ensure-user-stats-indexes": "ts-node -r tsconfig-paths/register scripts/ensure-user-stats-indexes.ts",
     "db:ensure-practice-answers": "ts-node -r tsconfig-paths/register scripts/ensure-practice-answers.ts",
+    "db:ensure-blog-views": "ts-node -r tsconfig-paths/register scripts/ensure-blog-views.ts",
     "db:clear-exam-attempts": "ts-node -r tsconfig-paths/register scripts/clear-exam-attempts.ts --yes",
     "db:archive-outdated": "ts-node -r tsconfig-paths/register scripts/archive-outdated-questions.ts",
     "db:migrate-timestamptz": "ts-node -r tsconfig-paths/register scripts/migrate-timestamps-to-timestamptz.ts"

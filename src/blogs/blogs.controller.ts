@@ -17,6 +17,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { Throttle } from '@nestjs/throttler';
 import { BlogsService } from './blogs.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AdminGuard } from '../auth/admin.guard';
@@ -60,6 +61,18 @@ export class BlogsController {
   @Get(':id')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.blogsService.findOne(id);
+  }
+
+  /**
+   * Public. Counts one view; not idempotent. Kept off GET /blogs/:id so SSR,
+   * prefetch and admin edit screens do not inflate the count — the frontend
+   * calls this once per page view on the client.
+   */
+  @Post(':id/view')
+  @Throttle({ default: { ttl: 60_000, limit: 30 } })
+  @HttpCode(HttpStatus.OK)
+  recordView(@Param('id', ParseIntPipe) id: number) {
+    return this.blogsService.recordView(id);
   }
 
   @Patch(':id')

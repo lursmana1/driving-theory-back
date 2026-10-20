@@ -25,6 +25,11 @@ export class Blog {
   @Column()
   imageUrl: string;
 
+  // Written only by INCREMENT_BLOG_VIEWS_SQL; `update: false` keeps a stale
+  // entity save (admin edit) from overwriting concurrent increments.
+  @Column({ type: 'int', default: 0, update: false })
+  viewsCount: number;
+
   @ManyToOne(() => User, { onDelete: 'SET NULL', nullable: true })
   @JoinColumn({ name: 'creatorId' })
   creator: User;
