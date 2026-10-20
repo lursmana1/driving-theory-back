@@ -74,3 +74,6 @@ pids
 
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# Local one-off scripts
+scripts/trim-georgian-greeting.ts
