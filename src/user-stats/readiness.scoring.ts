@@ -8,18 +8,18 @@ import type {
   ReadinessSubjectInput,
 } from './readiness.types.js';
 
-/** An attempt that collapsed early scores a fraction of its raw accuracy. */
-const EARLY_FAIL_SCORE_FACTOR = 0.3;
-
-const EXAM_WEIGHT = 0.65;
-const ANSWER_WEIGHT = 0.35;
-
-/** Share of the readiness score from recent exam form (rest = topic coverage). */
-const FORM_WEIGHT = 0.9;
-const COVERAGE_SCORE_WEIGHT = 0.1;
+/** Each older exam weighs this much of the next newer one. */
+const RECENCY_DECAY = 0.85;
 
 /**
- * Diagnostic coverage factor for API/UI (not the main score multiplier).
+ * Accuracy assumed before any evidence, worth this many answers. Keeps one
+ * lucky exam from jumping straight to 100; fades as real answers pile up.
+ */
+const PRIOR_ACCURACY = 0.75;
+const PRIOR_WEIGHT = 15;
+
+/**
+ * Diagnostic coverage factor for API/UI (not part of the score).
  * 0 covered → COVERAGE_FLOOR; all covered → 1.
  */
 const COVERAGE_FLOOR = 0.55;
@@ -45,29 +45,41 @@ export function isEarlyFail(
   return earlyWrong >= maxWrong;
 }
 
-export function scoreAttemptAccuracy(
-  attempt: ReadinessAttemptInput,
-  questionCount: number,
-): number {
-  const raw = clamp01(attempt.correctCount / Math.max(1, questionCount));
-  return isEarlyFail(attempt, questionCount)
-    ? raw * EARLY_FAIL_SCORE_FACTOR
-    : raw;
-}
-
-export function computeExamAccuracy(
+/**
+ * Per-question accuracy from recent exam answers (most recent first), newer
+ * exams weighted more, shrunk towards PRIOR_ACCURACY. Exams the client cut
+ * short after too many mistakes count only the answers actually given.
+ */
+export function estimateAnswerAccuracy(
   attempts: ReadinessAttemptInput[],
-  questionCount: number,
 ): number {
-  if (attempts.length === 0) return 0;
-  const sum = attempts.reduce(
-    (acc, attempt) => acc + scoreAttemptAccuracy(attempt, questionCount),
-    0,
-  );
-  return sum / attempts.length;
+  let correct = PRIOR_ACCURACY * PRIOR_WEIGHT;
+  let answered = PRIOR_WEIGHT;
+  attempts.forEach((attempt, index) => {
+    const weight = RECENCY_DECAY ** index;
+    correct += weight * attempt.correctCount;
+    answered += weight * (attempt.answeredCount ?? attempt.correctCount);
+  });
+  return clamp01(correct / answered);
 }
 
-/** Lifetime per-subject accuracy — the fallback when there are no exams yet. */
+/** P(at most `maxWrong` wrong out of `questionCount`) at per-question accuracy. */
+export function passProbability(
+  accuracy: number,
+  questionCount: number,
+  maxWrong: number,
+): number {
+  const wrongRate = clamp01(1 - accuracy);
+  let sum = 0;
+  let ways = 1; // C(questionCount, k)
+  for (let k = 0; k <= Math.min(maxWrong, questionCount); k++) {
+    sum += ways * wrongRate ** k * (1 - wrongRate) ** (questionCount - k);
+    ways = (ways * (questionCount - k)) / (k + 1);
+  }
+  return clamp01(sum);
+}
+
+/** Lifetime per-subject accuracy — shown when there are no exams yet. */
 export function computeAnswerAccuracy(
   subjects: ReadinessSubjectInput[],
 ): number {
@@ -76,19 +88,6 @@ export function computeAnswerAccuracy(
   for (const subject of subjects) {
     correct += subject.correctCount;
     total += subject.correctCount + subject.wrongCount;
-  }
-  return total > 0 ? correct / total : 0;
-}
-
-/** Answer accuracy from recent exam attempts only. */
-export function computeRecentAnswerAccuracy(
-  attempts: ReadinessAttemptInput[],
-): number {
-  let correct = 0;
-  let total = 0;
-  for (const attempt of attempts) {
-    correct += attempt.correctCount;
-    total += attempt.answeredCount ?? attempt.correctCount;
   }
   return total > 0 ? correct / total : 0;
 }
@@ -131,23 +130,5 @@ export function countSubjectsByMastery(
 export function computeCoverageFactor(practicePart: number): number {
   return (
     COVERAGE_FLOOR + (1 - COVERAGE_FLOOR) * Math.sqrt(clamp01(practicePart))
-  );
-}
-
-/** Recent-form component: exam accuracy weighted against answer accuracy. */
-export function computeCoreScore(
-  examAccuracy: number,
-  answerAccuracy: number,
-): number {
-  return EXAM_WEIGHT * examAccuracy + ANSWER_WEIGHT * answerAccuracy;
-}
-
-/** Final 0–100 score: mostly recent form, nudged by topic coverage. */
-export function computeReadinessScore(
-  core: number,
-  practicePart: number,
-): number {
-  return Math.round(
-    100 * clamp01(FORM_WEIGHT * core + COVERAGE_SCORE_WEIGHT * practicePart),
   );
 }

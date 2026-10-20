@@ -1,12 +1,14 @@
 /**
  * Readiness score (მზაობის ქულა) — category-scoped, 0–100.
  *
- * Score is mainly recent exams (last 20), not bank coverage:
- *   core = 65% exam accuracy + 35% answer accuracy on those exams
- *   score = 90% × core + 10% × (coveredTopics / topicsTotal)
+ * Only full exams count: every subject of the category, official ticket size.
+ * Topic drills and custom-size tickets feed subject stats, not readiness.
  *
- * Topic coverage only nudges the score and gates readyForExam (≥40% topics).
- * readyForExam: last exam passed + score ≥90 + ≥40% of topics covered.
+ *   accuracy = recency-weighted correct / answered over the last 20 full
+ *              exams, shrunk towards a prior so one exam cannot decide it
+ *   score    = 100 × P(wrong answers ≤ category limit) on an official ticket
+ *
+ * readyForExam: score ≥85 + last 3 full exams passed + ≥65% topics covered.
  *
  * Scoring primitives live in `readiness.scoring.ts`, wording in
  * `readiness.labels.ts`, shapes in `readiness.types.ts`.
@@ -16,19 +18,18 @@ import {
   READINESS_MAX_ATTEMPTS,
   READINESS_READY_SCORE_THRESHOLD,
   READINESS_READY_PRACTICE_THRESHOLD,
+  READINESS_READY_PASS_STREAK,
   MIN_SUBJECT_ATTEMPTS_FOR_STATS,
 } from '../common/constants/exam.constants.js';
 import { round3 } from '../common/utils/round3.util.js';
 import {
   computeAnswerAccuracy,
   computeCoverageFactor,
-  computeCoreScore,
-  computeExamAccuracy,
-  computeReadinessScore,
-  computeRecentAnswerAccuracy,
   countCoveredSubjects,
   countSubjectsByMastery,
+  estimateAnswerAccuracy,
   isEarlyFail,
+  passProbability,
 } from './readiness.scoring.js';
 import {
   resolveReadinessConfidence,
@@ -47,21 +48,32 @@ export function computeReadiness(
     subjects,
     subjectsTotal,
     questionCount,
+    minCorrectToPass,
     passRate,
     minSubjectAttempts = MIN_SUBJECT_ATTEMPTS_FOR_STATS,
     completedAttemptsTotal,
     recentExamLimit = READINESS_MAX_ATTEMPTS,
     readyScoreThreshold = READINESS_READY_SCORE_THRESHOLD,
     readyPracticeThreshold = READINESS_READY_PRACTICE_THRESHOLD,
+    readyPassStreak = READINESS_READY_PASS_STREAK,
   } = input;
 
   const recentAttempts = attempts.slice(0, recentExamLimit);
-  const examAccuracy = computeExamAccuracy(recentAttempts, questionCount);
-  // Lifetime subject history stands in until the user has sat an exam.
-  const answerAccuracy =
-    recentAttempts.length > 0
-      ? computeRecentAnswerAccuracy(recentAttempts)
-      : computeAnswerAccuracy(subjects);
+  const hasExams = recentAttempts.length > 0;
+  // Lifetime subject history is shown until the user has sat a full exam.
+  const answerAccuracy = hasExams
+    ? estimateAnswerAccuracy(recentAttempts)
+    : computeAnswerAccuracy(subjects);
+  const readinessScore = hasExams
+    ? Math.round(
+        100 *
+          passProbability(
+            answerAccuracy,
+            questionCount,
+            questionCount - minCorrectToPass,
+          ),
+      )
+    : 0;
 
   const subjectsCovered = countCoveredSubjects(subjects);
   const practicePart = subjectsTotal > 0 ? subjectsCovered / subjectsTotal : 0;
@@ -71,25 +83,35 @@ export function computeReadiness(
     passRate,
   );
 
-  const readinessScore = computeReadinessScore(
-    computeCoreScore(examAccuracy, answerAccuracy),
-    practicePart,
+  const confidence = resolveReadinessConfidence(
+    recentAttempts.reduce(
+      (sum, attempt) => sum + (attempt.answeredCount ?? attempt.correctCount),
+      0,
+    ),
   );
-  const confidence = resolveReadinessConfidence(recentAttempts.length);
-  const lastAttemptPassed =
-    recentAttempts.length > 0 ? recentAttempts[0].passed : null;
+  const lastAttemptPassed = hasExams ? recentAttempts[0].passed : null;
+  const streak = recentAttempts.slice(0, readyPassStreak);
   const readyForExam =
-    confidence !== 'none' &&
+    streak.length >= readyPassStreak &&
+    streak.every((attempt) => attempt.passed) &&
     readinessScore >= readyScoreThreshold &&
-    lastAttemptPassed === true &&
     practicePart >= readyPracticeThreshold;
 
   return {
     readinessScore,
     confidence,
     readyForExam,
-    label: resolveReadinessLabel(readinessScore, confidence, readyForExam),
-    examAccuracy: round3(examAccuracy),
+    label: resolveReadinessLabel(
+      readinessScore,
+      confidence,
+      readyForExam,
+      readyScoreThreshold,
+    ),
+    examAccuracy: hasExams
+      ? round3(
+          recentAttempts.filter((a) => a.passed).length / recentAttempts.length,
+        )
+      : 0,
     answerAccuracy: round3(answerAccuracy),
     practicePart: round3(practicePart),
     coverageFactor: round3(computeCoverageFactor(practicePart)),

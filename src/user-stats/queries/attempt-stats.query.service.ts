@@ -23,18 +23,23 @@ export class AttemptStatsQueryService {
   ) {}
 
   /**
-   * Most recent completed attempts with per-attempt score and early-window
-   * wrong count, plus the total of all completed attempts in the category.
-   * Only live questions are graded.
+   * Most recent full exams with per-attempt score and early-window wrong
+   * count, plus the total of all full exams in the category. Only live
+   * questions are graded.
+   *
+   * Full exam = official ticket size and every subject of the category (the
+   * picker sends the whole list, older clients send none). An attempt counts
+   * once finished with at least one answer, or once expired with at least one
+   * wrong answer — closing the tab after a mistake does not hide the exam, but
+   * an interrupted clean run is not turned into a fail.
    */
   async loadRecentCompletedAttempts(
     userId: number,
     categoryId: number,
   ): Promise<{ rows: RecentAttemptRow[]; completedTotal: number }> {
     const categoryFilter = categoryFilterJson(categoryId);
-    const fallbackThreshold = resolveGeorgianExamRule({
-      categories: [categoryId],
-    }).minCorrectToPass;
+    const rule = resolveGeorgianExamRule({ categories: [categoryId] });
+    const fallbackThreshold = rule.minCorrectToPass;
 
     const rows = await this.manager.query<
       {
@@ -49,15 +54,46 @@ export class AttemptStatsQueryService {
     >(
       `
       WITH completed AS (
-        SELECT t.id, t."minCorrectToPass", t.passed, t."completedAt"
+        SELECT
+          t.id,
+          t."minCorrectToPass",
+          t.passed,
+          COALESCE(t."completedAt", t."endDate") AS "settledAt"
         FROM exam_attempts t
         WHERE t."userId" = $1
-          AND t."completedAt" IS NOT NULL
+          AND jsonb_array_length(t."questionIds") = $6
+          AND (
+            jsonb_array_length(t.subjects) = 0
+            OR t.subjects @> COALESCE(
+              (
+                SELECT jsonb_path_query_array(c.subjects, '$[*].id')
+                FROM categories c
+                WHERE c.id = $3
+              ),
+              '[]'::jsonb
+            )
+          )
+          AND (
+            (
+              t."completedAt" IS NOT NULL
+              AND EXISTS (
+                SELECT 1 FROM user_answers ua WHERE ua."attemptId" = t.id
+              )
+            )
+            OR (
+              t."completedAt" IS NULL
+              AND t."endDate" < NOW()
+              AND EXISTS (
+                SELECT 1 FROM user_answers ua
+                WHERE ua."attemptId" = t.id AND ua.correct = false
+              )
+            )
+          )
           AND ${attemptMatchesCategorySql('t', '$2', '$3')}
       ),
       recent AS (
         SELECT * FROM completed
-        ORDER BY completed."completedAt" DESC
+        ORDER BY completed."settledAt" DESC
         LIMIT $4
       ),
       answer_stats AS (
@@ -102,7 +138,7 @@ export class AttemptStatsQueryService {
       FROM recent r
       LEFT JOIN answer_stats s ON s."attemptId" = r.id
       LEFT JOIN early e ON e."attemptId" = r.id
-      ORDER BY r."completedAt" DESC
+      ORDER BY r."settledAt" DESC
       `,
       [
         userId,
@@ -110,19 +146,31 @@ export class AttemptStatsQueryService {
         categoryId,
         READINESS_MAX_ATTEMPTS,
         EARLY_FAIL_WINDOW,
+        rule.questionCount,
       ],
     );
 
     return {
-      // No recent rows means no completed attempts at all, so 0 is exact.
+      // No recent rows means no full exams at all, so 0 is exact.
       completedTotal: parsePgInt(rows[0]?.completedTotal),
-      rows: rows.map((row) => ({
-        correctCount: parsePgInt(row.correctCount),
-        minCorrectToPass: parsePgInt(row.minCorrectToPass, fallbackThreshold),
-        passed: parsePgBoolean(row.passed),
-        answeredCount: parsePgInt(row.answeredCount),
-        earlyWrongCount: parsePgInt(row.earlyWrongCount),
-      })),
+      rows: rows.map((row) => {
+        const correctCount = parsePgInt(row.correctCount);
+        const minCorrectToPass = parsePgInt(
+          row.minCorrectToPass,
+          fallbackThreshold,
+        );
+        return {
+          correctCount,
+          minCorrectToPass,
+          // Expired attempts nobody finished are graded on the answers given.
+          passed:
+            row.passed == null
+              ? correctCount >= minCorrectToPass
+              : parsePgBoolean(row.passed),
+          answeredCount: parsePgInt(row.answeredCount),
+          earlyWrongCount: parsePgInt(row.earlyWrongCount),
+        };
+      }),
     };
   }
 }
