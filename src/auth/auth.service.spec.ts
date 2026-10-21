@@ -1,7 +1,12 @@
-import { ConflictException, UnauthorizedException } from '@nestjs/common';
+import {
+  ConflictException,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { QueryFailedError } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { AuthService } from './auth.service';
+import { TOUCH_LOGIN_STREAK_SQL } from './login-streak.query';
 import type { User } from '../users/entities/user.entity';
 
 function setup(matches: Partial<User>[] = []) {
@@ -145,5 +150,42 @@ describe('AuthService email handling', () => {
     expect(repo.save).toHaveBeenCalledWith(
       expect.objectContaining({ id: 5, googleId: 'g-1' }),
     );
+  });
+});
+
+describe('AuthService.getMe', () => {
+  it('counts the visit and returns the streak', async () => {
+    const { service, repo } = setup();
+    const query = jest.fn().mockResolvedValue([
+      {
+        id: 5,
+        name: 'Nino',
+        surname: null,
+        email: 'nino@example.ge',
+        type: 'user',
+        currentStreak: 4,
+        longestStreak: 9,
+      },
+    ]);
+    Object.assign(repo, { query });
+
+    const me = await service.getMe(5);
+
+    expect(query).toHaveBeenCalledWith(TOUCH_LOGIN_STREAK_SQL, [5]);
+    expect(me).toEqual({
+      id: 5,
+      name: 'Nino',
+      surname: null,
+      email: 'nino@example.ge',
+      type: 'user',
+      streak: { current: 4, longest: 9 },
+    });
+  });
+
+  it('returns 404 for a deleted user', async () => {
+    const { service, repo } = setup();
+    Object.assign(repo, { query: jest.fn().mockResolvedValue([]) });
+
+    await expect(service.getMe(5)).rejects.toBeInstanceOf(NotFoundException);
   });
 });

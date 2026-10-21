@@ -21,4 +21,15 @@ export class User {
 
   @Column({ type: 'varchar', default: 'user' })
   type: 'admin' | 'user';
+
+  /** Consecutive Tbilisi days with a GET /auth/me; see login-streak.query.ts. */
+  @Column({ type: 'int', default: 0 })
+  currentStreak: number;
+
+  @Column({ type: 'int', default: 0 })
+  longestStreak: number;
+
+  /** YYYY-MM-DD in Asia/Tbilisi; null until the first visit is counted. */
+  @Column({ type: 'date', nullable: true })
+  lastActiveDay: string | null;
 }

@@ -12,6 +12,7 @@ import { User } from '../users/entities/user.entity';
 import { BCRYPT_SALT_ROUNDS } from '../common/constants/auth.constants';
 import { emailEqualsSql, normalizeEmail } from '../common/utils/email.util.js';
 import { isUniqueViolation } from '../common/utils/pg-error.util.js';
+import { TOUCH_LOGIN_STREAK_SQL, type MeRow } from './login-streak.query';
 
 const EMAIL_TAKEN = 'Email already exists';
 
@@ -90,7 +91,10 @@ export class AuthService {
   }
 
   async getMe(userId: number) {
-    const user = await this.usersRepository.findOne({ where: { id: userId } });
+    const [user] = await this.usersRepository.query<MeRow[]>(
+      TOUCH_LOGIN_STREAK_SQL,
+      [userId],
+    );
     if (!user) {
       throw new NotFoundException('User not found');
     }
@@ -100,6 +104,10 @@ export class AuthService {
       surname: user.surname,
       email: user.email,
       type: user.type,
+      streak: {
+        current: user.currentStreak,
+        longest: user.longestStreak,
+      },
     };
   }
 
