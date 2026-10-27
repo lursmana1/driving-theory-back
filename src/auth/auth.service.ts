@@ -12,7 +12,12 @@ import { User } from '../users/entities/user.entity';
 import { BCRYPT_SALT_ROUNDS } from '../common/constants/auth.constants';
 import { emailEqualsSql, normalizeEmail } from '../common/utils/email.util.js';
 import { isUniqueViolation } from '../common/utils/pg-error.util.js';
+import { parsePgInt } from '../common/utils/pg-row.util.js';
 import { TOUCH_LOGIN_STREAK_SQL, type MeRow } from './login-streak.query';
+import {
+  TRAINER_DUE_SQL,
+  type TrainerDueRow,
+} from '../mistake-trainer/trainer-due.query.js';
 
 const EMAIL_TAKEN = 'Email already exists';
 
@@ -91,10 +96,10 @@ export class AuthService {
   }
 
   async getMe(userId: number) {
-    const [user] = await this.usersRepository.query<MeRow[]>(
-      TOUCH_LOGIN_STREAK_SQL,
-      [userId],
-    );
+    const [[user], due] = await Promise.all([
+      this.usersRepository.query<MeRow[]>(TOUCH_LOGIN_STREAK_SQL, [userId]),
+      this.usersRepository.query<TrainerDueRow[]>(TRAINER_DUE_SQL, [userId]),
+    ]);
     if (!user) {
       throw new NotFoundException('User not found');
     }
@@ -108,6 +113,12 @@ export class AuthService {
         current: user.currentStreak,
         longest: user.longestStreak,
       },
+      // Header badge: mistakes due for review now, per category with
+      // active mistakes, most due first; [] when there are none.
+      trainer: due.map((row) => ({
+        categoryId: parsePgInt(row.categoryId),
+        dueNow: parsePgInt(row.dueNow),
+      })),
     };
   }
 

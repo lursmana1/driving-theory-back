@@ -1,8 +1,12 @@
+import { upsertQuestionProgressSql } from '../question-progress/question-progress.sql.js';
+
 /**
  * One Postgres round trip for POST /exam-attempts/:id/answer.
  *
- * Load, grade, insert, expire-settle, and last-question complete all run in
- * the same statement so a distant API (Vercel → Neon) pays one hop, not three.
+ * Load, grade, insert, expire-settle, last-question complete and the
+ * question_progress update all run in the same statement so a distant API
+ * pays one hop, not several. Progress is written only when the answer row
+ * was inserted, so duplicate submits stay no-ops.
  *
  * Data-modifying CTEs are joined in the final SELECT so Postgres actually
  * executes them (unreferenced DML CTEs are skipped).
@@ -92,7 +96,14 @@ inserted AS (
   -- the loser a no-op. No conflict target, so this is valid before the
   -- constraint exists too.
   ON CONFLICT DO NOTHING
-  RETURNING "attemptId", correct
+  RETURNING "attemptId", "questionId", correct
+),
+progressed AS (${upsertQuestionProgressSql(`(
+    SELECT i.user_id, ins."questionId" AS question_id, ins.correct,
+           NOW() AS answered_at
+    FROM inserted ins
+    CROSS JOIN input i
+  )`)}
 ),
 completed AS (
   UPDATE exam_attempts e
@@ -126,6 +137,7 @@ FROM input
 LEFT JOIN graded g ON TRUE
 LEFT JOIN settled ON TRUE
 LEFT JOIN inserted ON TRUE
+LEFT JOIN progressed ON TRUE
 LEFT JOIN completed ON TRUE
 `;
 

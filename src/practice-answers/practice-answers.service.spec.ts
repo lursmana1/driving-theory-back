@@ -1,67 +1,139 @@
-import { QueryFailedError } from 'typeorm';
+import { NotFoundException } from '@nestjs/common';
 import { PracticeAnswersService } from './practice-answers.service';
-
-function uniqueViolation(): QueryFailedError {
-  const driverError = Object.assign(new Error('duplicate key'), {
-    code: '23505',
-  });
-  return new QueryFailedError('INSERT', [], driverError);
-}
+import { RECORD_PRACTICE_SQL } from './record-practice.query';
 
 describe('PracticeAnswersService.record', () => {
-  const question = { id: 5, lang: 'ka', subject: 3, correct_answer: '2' };
-
-  function setup() {
-    const practiceRepo = {
-      findOne: jest.fn(),
-      create: jest.fn((row: object) => row),
-      save: jest.fn(),
-    };
-    const questionRepo = { findOne: jest.fn().mockResolvedValue(question) };
-    const service = new PracticeAnswersService(
-      practiceRepo as never,
-      questionRepo as never,
-    );
-    return { service, practiceRepo };
+  function setup(rows: object[]) {
+    const manager = { query: jest.fn().mockResolvedValue(rows) };
+    const service = new PracticeAnswersService(manager as never);
+    return { service, manager };
   }
 
-  it('retries as an update when a concurrent insert wins the race', async () => {
-    const { service, practiceRepo } = setup();
-    const winner = {
-      questionId: 5,
-      lang: 'ka',
-      subject: 3,
-      correct: false,
-      chosenAnswer: '1',
-    };
-    practiceRepo.findOne
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce(winner);
-    practiceRepo.save
-      .mockRejectedValueOnce(uniqueViolation())
-      .mockImplementationOnce((row: object) => Promise.resolve(row));
+  const gradedRow = {
+    questionId: '5',
+    lang: 'ka',
+    subject: '3',
+    correct: false,
+    wrongCount: '1',
+    correctCount: '0',
+    box: '0',
+    dueAt: new Date('2000-01-01T00:00:00Z'),
+    clearedAt: null,
+    reviewsLeft: '3',
+  };
+
+  it('sends one statement with a trimmed choice', async () => {
+    const { service, manager } = setup([gradedRow]);
+
+    await service.record(1, { questionId: 5, lang: 'ka', chosenAnswer: ' 2 ' });
+
+    expect(manager.query).toHaveBeenCalledTimes(1);
+    expect(manager.query).toHaveBeenCalledWith(RECORD_PRACTICE_SQL, [
+      1,
+      5,
+      'ka',
+      '2',
+    ]);
+  });
+
+  it('returns the grade and the progress after a graded answer', async () => {
+    const { service } = setup([gradedRow]);
 
     const result = await service.record(1, {
       questionId: 5,
       lang: 'ka',
-      chosenAnswer: '2',
+      chosenAnswer: '1',
     });
 
-    expect(result).toMatchObject({ questionId: 5, correct: true });
-    expect(practiceRepo.save).toHaveBeenCalledTimes(2);
-    expect(practiceRepo.save).toHaveBeenLastCalledWith(
-      expect.objectContaining({ correct: true, chosenAnswer: '2' }),
-    );
+    expect(result).toMatchObject({
+      questionId: 5,
+      lang: 'ka',
+      subject: 3,
+      correct: false,
+      seenOnly: false,
+      progress: { status: 'mistake', due: true, reviewsLeft: 3, wrongCount: 1 },
+    });
   });
 
-  it('does not swallow other database errors', async () => {
-    const { service, practiceRepo } = setup();
-    practiceRepo.findOne.mockResolvedValue(null);
-    practiceRepo.save.mockRejectedValue(new Error('connection lost'));
+  it('treats an empty choice as seen-only with no progress', async () => {
+    const { service, manager } = setup([
+      {
+        ...gradedRow,
+        correct: null,
+        wrongCount: null,
+        correctCount: null,
+        box: null,
+        dueAt: null,
+      },
+    ]);
+
+    const result = await service.record(1, {
+      questionId: 5,
+      chosenAnswer: '   ',
+    });
+
+    expect(manager.query).toHaveBeenCalledWith(RECORD_PRACTICE_SQL, [
+      1,
+      5,
+      'ka',
+      null,
+    ]);
+    expect(result).toMatchObject({
+      correct: null,
+      seenOnly: true,
+      progress: null,
+    });
+  });
+
+  it('keeps an earlier grade when a seen-only call hits a graded row', async () => {
+    const { service } = setup([
+      { ...gradedRow, correct: 't', wrongCount: null, box: null, dueAt: null },
+    ]);
+
+    const result = await service.record(1, { questionId: 5 });
+
+    expect(result).toMatchObject({ correct: true, seenOnly: false });
+  });
+
+  it('is a 404 when the question is not live in that lang', async () => {
+    const { service } = setup([]);
 
     await expect(
-      service.record(1, { questionId: 5, lang: 'ka', chosenAnswer: '2' }),
+      service.record(1, { questionId: 5, lang: 'en', chosenAnswer: '2' }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('does not swallow database errors', async () => {
+    const { service, manager } = setup([]);
+    manager.query.mockRejectedValue(new Error('connection lost'));
+
+    await expect(
+      service.record(1, { questionId: 5, chosenAnswer: '2' }),
     ).rejects.toThrow('connection lost');
-    expect(practiceRepo.save).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('RECORD_PRACTICE_SQL', () => {
+  it('uses bind parameters only', () => {
+    expect(RECORD_PRACTICE_SQL).toContain('$4::text');
+    expect(RECORD_PRACTICE_SQL).not.toMatch(/\$\{/);
+  });
+
+  it('upserts on the practice unique key and runs the progress CTE', () => {
+    expect(RECORD_PRACTICE_SQL).toContain(
+      'ON CONFLICT ("userId", "questionId", lang) DO UPDATE',
+    );
+    const tail = RECORD_PRACTICE_SQL.slice(
+      RECORD_PRACTICE_SQL.lastIndexOf('SELECT'),
+    );
+    expect(tail).toContain('LEFT JOIN progressed');
+  });
+
+  it('writes progress only for graded answers', () => {
+    const progressed = RECORD_PRACTICE_SQL.slice(
+      RECORD_PRACTICE_SQL.indexOf('progressed AS ('),
+    );
+    expect(progressed).toContain('INSERT INTO question_progress');
+    expect(progressed).toContain('WHERE g.correct IS NOT NULL');
   });
 });

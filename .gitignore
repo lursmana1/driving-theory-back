@@ -41,6 +41,7 @@ lerna-debug.log*
 AGENTS.md
 docs/seo/
 docs/future-plan.md
+docs/study-plan.md
 
 # Local Keycloak Postgres compose (contains host secrets; leftover, not Coolify)
 infra/docker-compose-postgres.yaml
