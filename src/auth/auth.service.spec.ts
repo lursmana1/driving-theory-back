@@ -7,6 +7,7 @@ import { QueryFailedError } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { AuthService } from './auth.service';
 import { TOUCH_LOGIN_STREAK_SQL } from './login-streak.query';
+import { TRAINER_DUE_SQL } from '../mistake-trainer/trainer-due.query.js';
 import type { User } from '../users/entities/user.entity';
 
 function setup(matches: Partial<User>[] = []) {
@@ -154,24 +155,35 @@ describe('AuthService email handling', () => {
 });
 
 describe('AuthService.getMe', () => {
-  it('counts the visit and returns the streak', async () => {
+  const nino = {
+    id: 5,
+    name: 'Nino',
+    surname: null,
+    email: 'nino@example.ge',
+    type: 'user',
+    currentStreak: 4,
+    longestStreak: 9,
+  };
+  const queryFor = (user: object[], due: object[]) => (sql: string) =>
+    Promise.resolve(sql === TOUCH_LOGIN_STREAK_SQL ? user : due);
+
+  it('counts the visit and returns the streak and due mistakes', async () => {
     const { service, repo } = setup();
-    const query = jest.fn().mockResolvedValue([
-      {
-        id: 5,
-        name: 'Nino',
-        surname: null,
-        email: 'nino@example.ge',
-        type: 'user',
-        currentStreak: 4,
-        longestStreak: 9,
-      },
-    ]);
+    const query = jest.fn(
+      queryFor(
+        [nino],
+        [
+          { categoryId: 2, dueNow: '57' },
+          { categoryId: '1', dueNow: 17 },
+        ],
+      ),
+    );
     Object.assign(repo, { query });
 
     const me = await service.getMe(5);
 
     expect(query).toHaveBeenCalledWith(TOUCH_LOGIN_STREAK_SQL, [5]);
+    expect(query).toHaveBeenCalledWith(TRAINER_DUE_SQL, [5]);
     expect(me).toEqual({
       id: 5,
       name: 'Nino',
@@ -179,7 +191,54 @@ describe('AuthService.getMe', () => {
       email: 'nino@example.ge',
       type: 'user',
       streak: { current: 4, longest: 9 },
+      trainer: [
+        { categoryId: 2, dueNow: 57 },
+        { categoryId: 1, dueNow: 17 },
+      ],
     });
+  });
+
+  it('returns no categories without active mistakes', async () => {
+    const { service, repo } = setup();
+    Object.assign(repo, { query: jest.fn(queryFor([nino], [])) });
+
+    const me = await service.getMe(5);
+
+    expect(me.trainer).toEqual([]);
+  });
+
+  const pgError = (code: string) =>
+    new QueryFailedError(
+      'SELECT',
+      [],
+      Object.assign(new Error(code), { code }),
+    );
+
+  it('returns an empty badge while question_progress is missing', async () => {
+    const { service, repo } = setup();
+    const query = jest.fn((sql: string) =>
+      sql === TOUCH_LOGIN_STREAK_SQL
+        ? Promise.resolve([nino])
+        : Promise.reject(pgError('42P01')),
+    );
+    Object.assign(repo, { query });
+
+    const me = await service.getMe(5);
+
+    expect(me.streak).toEqual({ current: 4, longest: 9 });
+    expect(me.trainer).toEqual([]);
+  });
+
+  it('still fails on other badge query errors', async () => {
+    const { service, repo } = setup();
+    const query = jest.fn((sql: string) =>
+      sql === TOUCH_LOGIN_STREAK_SQL
+        ? Promise.resolve([nino])
+        : Promise.reject(pgError('57014')),
+    );
+    Object.assign(repo, { query });
+
+    await expect(service.getMe(5)).rejects.toBeInstanceOf(QueryFailedError);
   });
 
   it('returns 404 for a deleted user', async () => {

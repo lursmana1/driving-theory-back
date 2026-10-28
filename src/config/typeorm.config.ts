@@ -5,6 +5,7 @@ import { Category } from '../categories/entities/category.entity';
 import { ExamAttempt } from '../exam-attempts/entities/exam-attempt.entity';
 import { UserAnswer } from '../exam-attempts/entities/user-answer.entity';
 import { PracticeAnswer } from '../practice-answers/entities/practice-answer.entity';
+import { QuestionProgress } from '../question-progress/entities/question-progress.entity';
 import { LeaderboardPeriod } from '../leaderboard/entities/leaderboard-period.entity';
 import { Question } from '../questions/entities/question.entity';
 import { User } from '../users/entities/user.entity';
@@ -15,6 +16,7 @@ export const TYPEORM_ENTITIES = [
   ExamAttempt,
   UserAnswer,
   PracticeAnswer,
+  QuestionProgress,
   LeaderboardPeriod,
   Question,
   Category,

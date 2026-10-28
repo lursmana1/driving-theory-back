@@ -1,10 +1,14 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { PracticeAnswer } from './entities/practice-answer.entity';
-import { Question } from '../questions/entities/question.entity';
+import { InjectEntityManager } from '@nestjs/typeorm';
+import { EntityManager } from 'typeorm';
 import { DEFAULT_LANG } from '../common/constants/lang.constants.js';
-import { isUniqueViolation } from '../common/utils/pg-error.util.js';
+import { parsePgBoolean, parsePgInt } from '../common/utils/pg-row.util.js';
+import { toQuestionProgressView } from '../question-progress/question-progress.util.js';
+import type { QuestionProgressView } from '../question-progress/question-progress.types.js';
+import {
+  RECORD_PRACTICE_SQL,
+  type RecordPracticeRow,
+} from './record-practice.query.js';
 
 export type RecordPracticeInput = {
   questionId: number;
@@ -19,90 +23,61 @@ export type RecordPracticeResult = {
   subject: number | null;
   correct: boolean | null;
   seenOnly: boolean;
+  /** Mistake-trainer state after this answer; null for seen-only calls. */
+  progress: QuestionProgressView | null;
 };
 
 @Injectable()
 export class PracticeAnswersService {
   constructor(
-    @InjectRepository(PracticeAnswer)
-    private readonly practiceRepo: Repository<PracticeAnswer>,
-    @InjectRepository(Question)
-    private readonly questionRepo: Repository<Question>,
+    @InjectEntityManager()
+    private readonly manager: EntityManager,
   ) {}
 
   /**
-   * Upsert practice row for coverage (+ optional correct/wrong).
-   * Prefer calling only when the user answers (chosenAnswer set).
+   * Upsert practice row for coverage (+ optional correct/wrong) and, when
+   * graded, the question's progress. One atomic statement, so concurrent
+   * calls for the same question need no retry.
    */
   async record(
     userId: number,
     input: RecordPracticeInput,
   ): Promise<RecordPracticeResult> {
-    try {
-      return await this.recordOnce(userId, input);
-    } catch (err) {
-      // Two requests for the same question both saw "no row yet"; the loser
-      // hits the unique constraint. The row exists now, so retry as an update.
-      if (!isUniqueViolation(err)) throw err;
-      return this.recordOnce(userId, input);
-    }
-  }
-
-  private async recordOnce(
-    userId: number,
-    input: RecordPracticeInput,
-  ): Promise<RecordPracticeResult> {
     const lang = (input.lang ?? DEFAULT_LANG).trim() || DEFAULT_LANG;
-    const question = await this.questionRepo.findOne({
-      where: { id: input.questionId, lang },
-    });
-    if (!question) {
+    const rawChoice = input.chosenAnswer?.trim() ?? '';
+    const chosen = rawChoice.length === 0 ? null : rawChoice;
+
+    const [row] = await this.manager.query<RecordPracticeRow[]>(
+      RECORD_PRACTICE_SQL,
+      [userId, input.questionId, lang, chosen],
+    );
+    if (!row) {
       throw new NotFoundException(
         `Question ${input.questionId} (${lang}) not found in live bank`,
       );
     }
 
-    const rawChoice = input.chosenAnswer?.trim() ?? '';
-    const seenOnly = rawChoice.length === 0;
-    const correct = seenOnly ? null : question.correct_answer === rawChoice;
-
-    const existing = await this.practiceRepo.findOne({
-      where: { userId, questionId: input.questionId, lang },
-    });
-
-    if (existing) {
-      if (!seenOnly) {
-        existing.correct = correct;
-        existing.chosenAnswer = rawChoice;
-      }
-      existing.subject = question.subject;
-      await this.practiceRepo.save(existing);
-      return {
-        questionId: existing.questionId,
-        lang: existing.lang,
-        subject: existing.subject,
-        correct: existing.correct,
-        seenOnly: existing.correct == null,
-      };
-    }
-
-    const saved = await this.practiceRepo.save(
-      this.practiceRepo.create({
-        userId,
-        questionId: input.questionId,
-        lang,
-        subject: question.subject,
-        correct,
-        chosenAnswer: seenOnly ? null : rawChoice,
-      }),
-    );
-
+    const correct = row.correct == null ? null : parsePgBoolean(row.correct);
     return {
-      questionId: saved.questionId,
-      lang: saved.lang,
-      subject: saved.subject,
-      correct: saved.correct,
-      seenOnly,
+      questionId: parsePgInt(row.questionId),
+      lang: row.lang,
+      subject: row.subject == null ? null : parsePgInt(row.subject),
+      correct,
+      seenOnly: correct == null,
+      progress:
+        chosen == null
+          ? null
+          : toQuestionProgressView(
+              {
+                wrongCount: row.wrongCount ?? 0,
+                correctCount: row.correctCount ?? 0,
+                box: row.box ?? 0,
+                dueAt: row.dueAt,
+                clearedAt: row.clearedAt,
+                reviewsLeft: row.reviewsLeft ?? 0,
+              },
+              new Date(),
+            ),
     };
   }
 }

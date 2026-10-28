@@ -14,7 +14,17 @@ describe('SUBMIT_ANSWER_SQL', () => {
     );
     expect(tail).toContain('LEFT JOIN settled');
     expect(tail).toContain('LEFT JOIN inserted');
+    expect(tail).toContain('LEFT JOIN progressed');
     expect(tail).toContain('LEFT JOIN completed');
+  });
+
+  it('records progress only for the answer row that was inserted', () => {
+    const progressed = SUBMIT_ANSWER_SQL.slice(
+      SUBMIT_ANSWER_SQL.indexOf('progressed AS ('),
+      SUBMIT_ANSWER_SQL.indexOf('completed AS ('),
+    );
+    expect(progressed).toContain('INSERT INTO question_progress');
+    expect(progressed).toContain('FROM inserted ins');
   });
 
   it('turns a lost insert race into already_answered, not ok', () => {
