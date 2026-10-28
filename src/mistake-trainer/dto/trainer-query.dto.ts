@@ -16,12 +16,19 @@ import {
 /** Highest subject id accepted in a filter (ids are small catalog ints). */
 const MAX_SUBJECT_ID = 10_000;
 
-/** `?subjects=1,2,3` → `[1, 2, 3]`; an empty value means no filter. */
+/**
+ * `?subjects=1,2,3` or `?subjects=1&subjects=2,3` → `[1, 2, 3]`. Empty
+ * segments are dropped (`1,` → `[1]`); nothing left means no filter.
+ */
 function toIdList({ value }: { value: unknown }): unknown {
   if (value == null) return undefined;
-  if (typeof value !== 'string') return value;
-  if (value.trim() === '') return undefined;
-  return value.split(',').map((part) => Number(part.trim()));
+  const parts = Array.isArray(value) ? value : [value];
+  if (!parts.every((part) => typeof part === 'string')) return value;
+  const ids = parts
+    .flatMap((part) => part.split(','))
+    .map((part) => part.trim())
+    .filter((part) => part !== '');
+  return ids.length ? ids.map(Number) : undefined;
 }
 
 export class TrainerSummaryQueryDto {

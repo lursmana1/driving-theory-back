@@ -207,6 +207,40 @@ describe('AuthService.getMe', () => {
     expect(me.trainer).toEqual([]);
   });
 
+  const pgError = (code: string) =>
+    new QueryFailedError(
+      'SELECT',
+      [],
+      Object.assign(new Error(code), { code }),
+    );
+
+  it('returns an empty badge while question_progress is missing', async () => {
+    const { service, repo } = setup();
+    const query = jest.fn((sql: string) =>
+      sql === TOUCH_LOGIN_STREAK_SQL
+        ? Promise.resolve([nino])
+        : Promise.reject(pgError('42P01')),
+    );
+    Object.assign(repo, { query });
+
+    const me = await service.getMe(5);
+
+    expect(me.streak).toEqual({ current: 4, longest: 9 });
+    expect(me.trainer).toEqual([]);
+  });
+
+  it('still fails on other badge query errors', async () => {
+    const { service, repo } = setup();
+    const query = jest.fn((sql: string) =>
+      sql === TOUCH_LOGIN_STREAK_SQL
+        ? Promise.resolve([nino])
+        : Promise.reject(pgError('57014')),
+    );
+    Object.assign(repo, { query });
+
+    await expect(service.getMe(5)).rejects.toBeInstanceOf(QueryFailedError);
+  });
+
   it('returns 404 for a deleted user', async () => {
     const { service, repo } = setup();
     Object.assign(repo, { query: jest.fn().mockResolvedValue([]) });

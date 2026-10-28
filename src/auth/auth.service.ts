@@ -11,7 +11,10 @@ import * as bcrypt from 'bcrypt';
 import { User } from '../users/entities/user.entity';
 import { BCRYPT_SALT_ROUNDS } from '../common/constants/auth.constants';
 import { emailEqualsSql, normalizeEmail } from '../common/utils/email.util.js';
-import { isUniqueViolation } from '../common/utils/pg-error.util.js';
+import {
+  isUndefinedTable,
+  isUniqueViolation,
+} from '../common/utils/pg-error.util.js';
 import { parsePgInt } from '../common/utils/pg-row.util.js';
 import { TOUCH_LOGIN_STREAK_SQL, type MeRow } from './login-streak.query';
 import {
@@ -98,7 +101,7 @@ export class AuthService {
   async getMe(userId: number) {
     const [[user], due] = await Promise.all([
       this.usersRepository.query<MeRow[]>(TOUCH_LOGIN_STREAK_SQL, [userId]),
-      this.usersRepository.query<TrainerDueRow[]>(TRAINER_DUE_SQL, [userId]),
+      this.loadTrainerDue(userId),
     ]);
     if (!user) {
       throw new NotFoundException('User not found');
@@ -120,6 +123,23 @@ export class AuthService {
         dueNow: parsePgInt(row.dueNow),
       })),
     };
+  }
+
+  /**
+   * The badge must not take GET /auth/me down: until
+   * `db:ensure-question-progress` has run, the table is missing and the
+   * badge is empty instead of a 500. Other errors still fail the request.
+   */
+  private async loadTrainerDue(userId: number): Promise<TrainerDueRow[]> {
+    try {
+      return await this.usersRepository.query<TrainerDueRow[]>(
+        TRAINER_DUE_SQL,
+        [userId],
+      );
+    } catch (err) {
+      if (isUndefinedTable(err)) return [];
+      throw err;
+    }
   }
 
   async login(email: string, password: string) {

@@ -6,8 +6,10 @@
  * them; listing every category would show badges for categories the user
  * never studies. So: one row per category the user has taken an exam in
  * (`dueNow` may be 0). A user with no exams yet gets every category that
- * has active mistakes. Counts match GET /trainer/summary for that category.
- * Categories are the same in every language, so the join reads the `ka` row.
+ * has active mistakes. Categories are the same in every language, so the join
+ * reads the `ka` row. GET /trainer/summary joins in the request's language
+ * instead, so its `dueNow` differs when a question is live in only one of
+ * them.
  */
 export const TRAINER_DUE_SQL = `
 WITH studied AS (

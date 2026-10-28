@@ -107,7 +107,8 @@ with no exams yet gets every category with active mistakes. `[]` when there are 
 **`GET /trainer/session?category=&subjects=&limit=&lang=`**
 
 `{ data: { question, progress }[], summary }`. `limit` defaults to 20, max 50. Order: due first,
-then most reviews left, most wrong, soonest due, question id.
+then most reviews left, most wrong, soonest due, question id. `subjects` is a comma list
+(`subjects=4,9`) or a repeated param (`subjects=4&subjects=9`).
 
 **`progress`** (also returned by `POST /practice-answers`; `null` for seen-only calls):
 
@@ -127,6 +128,32 @@ then most reviews left, most wrong, soonest due, question id.
 - Max reviews: `MISTAKE_MAX_REVIEWS` (3). Only wrong answers after the change use the new value.
 - Timing: `MISTAKE_REVIEW_INTERVAL_DAYS`; the last step repeats if there are more reviews than
   steps.
-- Schema: `npm run db:ensure-question-progress` adds `reviewsLeft`. For tables created before it,
-  it fills active mistakes from the old box schedule and drops the dev-only `correctStreak`
-  column. Safe to re-run.
+- Schema: `npm run db:ensure-question-progress` (idempotent). See below for production.
+
+## Deploying to production (Coolify)
+
+The production database is only reachable from the Coolify PostgreSQL terminal, so the script
+prints its work as one psql script instead of connecting:
+
+```bash
+npx ts-node -r tsconfig-paths/register scripts/ensure-question-progress.ts --print-sql --backfill > qp.sql
+```
+
+`--dry-run` added to that command prints a version that shows the counts and ends in `ROLLBACK`.
+
+Order:
+
+1. Take a backup (Coolify → PostgreSQL resource → Backups → Backup Now).
+2. With the **old** API still running, run `qp.sql` in the PostgreSQL resource's Terminal. The old
+   API never touches `question_progress`, so the backfill cannot race live answers.
+3. Deploy the API. Until step 2 has run, `/auth/me` returns an empty `trainer` badge, but exam and
+   practice answers fail with 500.
+
+Answers given between steps 2 and 3 are not in the history. Re-running the backfill after the
+deploy fills pairs nobody has answered since; pairs answered live keep their live row.
+
+`--backfill` is optional. Without it the table starts empty and every user's trainer fills from
+their next wrong answer; readiness, stats and weak lists read the answer tables and are not
+affected.
+
+Production (2026-10-28): table and index created empty, without a backfill.
