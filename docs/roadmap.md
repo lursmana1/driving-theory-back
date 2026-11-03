@@ -8,7 +8,7 @@ query scoped by `req.user.userId`, no SQL interpolation, and an idempotent scrip
 
 ## 1. Fix the gaps that hurt real users
 
-- [x] **Password reset.** Built on `feat/password-reset-study-day` (not deployed). Decided 2026-11-01 (Resend, logout-all via `tokenVersion`, Google-only users can set a password): spec in `docs/phase0-password-reset-study-day.md`. Forgot password does not work: this API has no reset flow, so email users who
+- [x] **Password reset.** On `main` since 2026-11-04, prod schema applied; email waits for the Resend DNS (frontend link hidden until then). Decided 2026-11-01 (Resend, logout-all via `tokenVersion`, Google-only users can set a password): spec in `docs/phase0-password-reset-study-day.md`. Forgot password does not work: this API has no reset flow, so email users who
       forget their password are locked out. Needs a reset-token table (hashed token, expiry, single use),
       an email sender, and two rate-limited routes (request reset, confirm reset). Decide the email
       provider first.
@@ -37,7 +37,7 @@ query scoped by `req.user.userId`, no SQL interpolation, and an idempotent scrip
 - [ ] **CI.** `.github/workflows/` is empty. One workflow running `tsc`, `eslint` and `jest` on every push.
 - [ ] **Migrations.** Schema goes out through ad-hoc `scripts/ensure-*.ts`. Move to TypeORM migrations
       before adding the bookmark and reset-token tables.
-- [ ] **W5.** Partly done on `feat/password-reset-study-day`: `tokenVersion` check in `jwt.strategy.ts`
+- [ ] **W5.** Partly done (on `main`): `tokenVersion` check in `jwt.strategy.ts`
       `validate`. Left: read the role from the DB row too.
 
 ## Order

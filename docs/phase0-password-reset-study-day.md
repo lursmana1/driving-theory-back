@@ -1,6 +1,6 @@
 # Phase 0 — password reset + 04:00 study day
 
-Decided by the owner on 2026-11-01. **Built** on branch `feat/password-reset-study-day` in both repos (not deployed). Deploy order: run `npm run db:ensure-password-resets` on the target DB **before** the new API starts (the API reads `users.tokenVersion` on every authenticated request). Comes before the
+Decided by the owner on 2026-11-01. **Merged to `main` in both repos on 2026-11-04** (backend `9cb8abd`, frontend `ef73380`). Prod schema applied 2026-11-04. Email is **not live yet**: waiting for the Resend DNS records, so the backend has no Resend env and the frontend hides the link (`PASSWORD_RESET_ENABLED = false`). Deploy order: run `npm run db:ensure-password-resets` on the target DB **before** the new API starts (the API reads `users.tokenVersion` on every authenticated request). Comes before the
 study plan (`docs/study-plan-roadmap.md`). `CLAUDE.md` rules apply (guards, bounded DTOs, user-scoped
 queries, no SQL interpolation, idempotent `scripts/ensure-*.ts`).
 
@@ -40,6 +40,7 @@ queries, no SQL interpolation, idempotent `scripts/ensure-*.ts`).
 ## Frontend (prava)
 
 - `/auth/forgot-password` and `/auth/reset-password` pages (noindex, not in the sitemap), link from `LoginForm`.
+- Switch: `PASSWORD_RESET_ENABLED` in `src/CONSTS/features.ts` (a plain constant, not env). While `false` the login link is hidden and `/auth/forgot-password` redirects to `/auth`; `/auth/reset-password` stays reachable.
 - `src/api/auth.ts`: `forgotPassword`, `resetPassword`. Copy in `messages/*` under `Auth.*`.
 - Small hint where streak / trainer "today" is shown: "the day ends at 04:00".
 
@@ -61,10 +62,11 @@ to a server IP (Hetzner/Coolify, per `.env.example`), not Render.
 | 3 | Verify | resend.com → Domains → Verify | Status **Verified** |
 | 4 | Production key `prava-production`: Sending access, domain prava.ge | resend.com → API Keys | Key copied once into a password manager |
 | 5 | Local check: `EMAIL_FROM=prava.ge <noreply@prava.ge>` locally, forgot password for a local account whose email is **not** your Resend login (e.g. a gtu.ge address) | local | Email arrives (also check spam); proves the domain, not the test sender |
-| 6 | Commit both repos on `feat/password-reset-study-day`, merge into `main` (not frontend `dev`: it holds the sitemap timeout that must not reach `main`) | git | `main` builds in both repos |
-| 7 | Schema on production. Prod DB is only reachable from Coolify, so paste the SQL below into psql in the Coolify DB terminal (same as `scripts/ensure-password-resets.ts`, safe to re-run) | Coolify → Postgres → Terminal | `\d password_resets` shows the table; `users` has `tokenVersion` |
+| 6 | ✅ 2026-11-04. Commit both repos on `feat/password-reset-study-day`, merge into `main` (not frontend `dev`: it holds the sitemap timeout that must not reach `main`) | git | `main` builds in both repos |
+| 7 | ✅ 2026-11-04 (checked: `d password_resets`, `users.tokenVersion`). Schema on production. Prod DB is only reachable from Coolify, so paste the SQL below into psql in the Coolify DB terminal (same as `scripts/ensure-password-resets.ts`, safe to re-run) | Coolify → Postgres → Terminal | `\d password_resets` shows the table; `users` has `tokenVersion` |
 | 8 | Production env: `RESEND_API_KEY` (prod key), `EMAIL_FROM=prava.ge <noreply@prava.ge>`, `FRONTEND_PUBLIC_URL=https://prava.ge` | Coolify → API app → Environment | Boot log has **no** "Disabled — … Resend" warning |
-| 9 | Deploy API, then frontend | Coolify / Vercel | `/auth/forgot-password` page loads |
+| 9 | Deploy API, then frontend. The API can go out before step 8 (reset answers 503, nothing else changes) | Coolify / Vercel | Signed-in pages still work |
+| 9b | After steps 1–5 and 8: set `PASSWORD_RESET_ENABLED = true` in frontend `src/CONSTS/features.ts`, deploy | prava repo | Login form shows the link; `/auth/forgot-password` page loads |
 | 10 | Smoke test (below) | prava.ge | All pass |
 
 Step 7 SQL (one transaction):
