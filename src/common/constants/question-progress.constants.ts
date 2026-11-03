@@ -5,6 +5,14 @@
 export const STUDY_TIME_ZONE = 'Asia/Tbilisi';
 
 /**
+ * A study day starts at 04:00 Tbilisi time, not midnight, so a late-night
+ * session (23:30 → 01:30) counts as one day. Shared by the login streak,
+ * mistake-review due times and the study plan (`common/sql/study-day.sql.ts`).
+ * Tbilisi has no DST, so this is exactly 00:00 UTC.
+ */
+export const STUDY_DAY_START_HOUR = 4;
+
+/**
  * Days until the next review after each correct due review of a mistake.
  * A wrong answer makes the question due at once; after the 1st, 2nd and 3rd
  * correct review it comes back in 1, 3 and 7 days (the last step repeats).

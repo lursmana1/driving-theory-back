@@ -9,9 +9,11 @@ import { QuestionProgress } from '../question-progress/entities/question-progres
 import { LeaderboardPeriod } from '../leaderboard/entities/leaderboard-period.entity';
 import { Question } from '../questions/entities/question.entity';
 import { User } from '../users/entities/user.entity';
+import { PasswordReset } from '../auth/entities/password-reset.entity';
 
 export const TYPEORM_ENTITIES = [
   User,
+  PasswordReset,
   Blog,
   ExamAttempt,
   UserAnswer,

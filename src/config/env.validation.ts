@@ -18,6 +18,7 @@ const FEATURE_GROUPS: Record<string, string[]> = {
   ],
   'Google OAuth': ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'],
   'Question sync (Gemini)': ['GEMINI_API_KEY'],
+  'Password reset email (Resend)': ['RESEND_API_KEY', 'EMAIL_FROM'],
 };
 
 function isBlank(value: unknown): boolean {
