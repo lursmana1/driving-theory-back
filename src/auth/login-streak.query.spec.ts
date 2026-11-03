@@ -3,8 +3,10 @@ import { TOUCH_LOGIN_STREAK_SQL } from './login-streak.query';
 describe('TOUCH_LOGIN_STREAK_SQL', () => {
   const sql = TOUCH_LOGIN_STREAK_SQL.replace(/\s+/g, ' ');
 
-  it('counts days on the Georgian calendar, not UTC', () => {
-    expect(sql).toContain("(now() AT TIME ZONE 'Asia/Tbilisi')::date");
+  it('counts study days: Tbilisi time, starting at 04:00', () => {
+    expect(sql).toContain(
+      "((now() AT TIME ZONE 'Asia/Tbilisi') - interval '4 hours')::date",
+    );
   });
 
   it('extends only from yesterday and restarts at 1 otherwise', () => {
@@ -13,8 +15,10 @@ describe('TOUCH_LOGIN_STREAK_SQL', () => {
     );
   });
 
-  it('writes at most once per day', () => {
-    expect(sql).toContain('AND u."lastActiveDay" IS DISTINCT FROM t.day');
+  it('writes at most once per day and never moves the day backwards', () => {
+    expect(sql).toContain(
+      'AND (u."lastActiveDay" IS NULL OR u."lastActiveDay" < t.day)',
+    );
   });
 
   it('takes the user id only as a bound parameter', () => {

@@ -1,8 +1,8 @@
 # Study plan — backend plan
 
-Planning notes only. Nothing here is built yet. Frontend side + competitor research: `C:/Users/lursm/Desktop/prava/plans/study-plan.md` (read it first). This file is the backend half, kept in sync with it.
+> **Superseded in part (2026-11-01):** see `docs/study-plan-roadmap.md` (lessons instead of whole subjects, step table, phases). Where they differ, the roadmap wins.
 
-Product order stays in `.cursor/rules/product-roadmap.mdc`: build this **after** the mistake trainer and post-exam review on the Next app (the plan reuses both as daily tasks).
+Planning notes only. Nothing here is built yet. Frontend side + competitor research: `C:/Users/lursm/Desktop/prava/plans/study-plan.md` (read it first). This file is the backend half, kept in sync with it.
 
 Rules from `CLAUDE.md` apply: a guard on every new route, bounded DTOs, every user query scoped by `req.user.userId`, no SQL interpolation, an idempotent `scripts/ensure-*.ts` for the schema (`DB_SYNCHRONIZE=false`).
 

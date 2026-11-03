@@ -25,7 +25,7 @@ The rule files below are the single source of truth, shared with Cursor. Edit th
 - Module map, APIs, helpers to reuse: @.cursor/rules/project-architecture.mdc
 - Known bugs and patterns not to copy: @.cursor/rules/known-weaknesses.mdc
 
-For feature work also read `.cursor/rules/product-roadmap.mdc` and keep its order.
+For feature work also read `docs/roadmap.md` and keep its order.
 
 ## Non-negotiables
 

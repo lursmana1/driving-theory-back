@@ -10,10 +10,14 @@ import { JwtStrategy } from './jwt.strategy';
 import { GoogleStrategy } from './google.strategy';
 import { AdminGuard } from './admin.guard';
 import { ACCESS_TOKEN_TTL } from './auth.constants';
+import { PasswordReset } from './entities/password-reset.entity';
+import { PasswordResetService } from './password-reset.service';
+import { MailModule } from '../mail/mail.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User]),
+    TypeOrmModule.forFeature([User, PasswordReset]),
+    MailModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       imports: [ConfigModule],
@@ -25,7 +29,13 @@ import { ACCESS_TOKEN_TTL } from './auth.constants';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, GoogleStrategy, AdminGuard],
+  providers: [
+    AuthService,
+    PasswordResetService,
+    JwtStrategy,
+    GoogleStrategy,
+    AdminGuard,
+  ],
   exports: [AdminGuard],
 })
 export class AuthModule {}

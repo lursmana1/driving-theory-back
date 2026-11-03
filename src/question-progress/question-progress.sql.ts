@@ -1,11 +1,10 @@
 import {
   MISTAKE_MAX_REVIEWS,
   MISTAKE_REVIEW_INTERVAL_DAYS,
-  STUDY_TIME_ZONE,
 } from '../common/constants/question-progress.constants';
+import { studyDaySql, studyDayStartSql } from '../common/sql/study-day.sql';
 
 const INTERVALS_SQL = `ARRAY[${MISTAKE_REVIEW_INTERVAL_DAYS.join(', ')}]::int[]`;
-const ZONE_SQL = `'${STUDY_TIME_ZONE}'`;
 
 /** The incoming answer was given while the question was due. */
 const IS_DUE_REVIEW = `qp."dueAt" <= EXCLUDED."lastAnsweredAt"`;
@@ -22,13 +21,13 @@ const REVIEWS_AFTER_WRONG = `LEAST(GREATEST(
       ), ${MISTAKE_MAX_REVIEWS})`;
 
 /**
- * Start of the Georgian day after the next interval step, as timestamptz:
- * `MISTAKE_REVIEW_INTERVAL_DAYS[box]`, the last step repeating.
+ * Start (04:00 Tbilisi) of the study day after the next interval step, as
+ * timestamptz: `MISTAKE_REVIEW_INTERVAL_DAYS[box]`, the last step repeating.
  */
-const NEXT_DUE = `(
-          ((EXCLUDED."lastAnsweredAt" AT TIME ZONE ${ZONE_SQL})::date
-            + (${INTERVALS_SQL})[LEAST(qp.box + 1, ${MISTAKE_REVIEW_INTERVAL_DAYS.length})])::timestamp AT TIME ZONE ${ZONE_SQL}
-        )`;
+const NEXT_DUE = studyDayStartSql(
+  `${studyDaySql('EXCLUDED."lastAnsweredAt"')}
+            + (${INTERVALS_SQL})[LEAST(qp.box + 1, ${MISTAKE_REVIEW_INTERVAL_DAYS.length})]`,
+);
 
 /** Columns returned by `upsertQuestionProgressSql`. */
 const PROGRESS_RETURNING_COLUMNS = `qp."questionId", qp."wrongCount", qp."correctCount", qp.box,

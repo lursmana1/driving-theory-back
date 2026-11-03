@@ -8,9 +8,14 @@ describe('upsertQuestionProgressSql', () => {
     expect(sql).toContain('ON CONFLICT ("userId", "questionId") DO UPDATE');
   });
 
-  it('schedules from the configured intervals in the Georgian day', () => {
+  it('schedules from the configured intervals at the start of a study day (04:00 Tbilisi)', () => {
     expect(sql).toContain('ARRAY[1, 3, 7]::int[]');
-    expect(sql).toContain(`AT TIME ZONE 'Asia/Tbilisi'`);
+    expect(sql).toContain(
+      `((EXCLUDED."lastAnsweredAt" AT TIME ZONE 'Asia/Tbilisi') - interval '4 hours')::date`,
+    );
+    expect(sql).toContain(
+      `::timestamp + interval '4 hours') AT TIME ZONE 'Asia/Tbilisi')`,
+    );
   });
 
   it('advances only on a due review and resets on a wrong answer', () => {

@@ -159,7 +159,7 @@ export class AuthService {
    * comes first, so a legacy case-variant twin (`Name@x.ge` next to
    * `name@x.ge`) can never capture a sign-in meant for the exact one.
    */
-  private async findByEmail(normalizedEmail: string): Promise<User[]> {
+  async findByEmail(normalizedEmail: string): Promise<User[]> {
     const users = await this.usersRepository
       .createQueryBuilder('u')
       .where(emailEqualsSql('u'), { email: normalizedEmail })
@@ -169,11 +169,16 @@ export class AuthService {
     return [...users].sort((a, b) => exactFirst(a) - exactFirst(b));
   }
 
-  private generateToken(user: User) {
+  /**
+   * Session token for `user`. `ver` is the user's `tokenVersion`; a password
+   * reset bumps it, which invalidates every token signed before.
+   */
+  generateToken(user: User) {
     const payload = {
       sub: user.id,
       email: user.email,
       type: user.type ?? 'user',
+      ver: user.tokenVersion ?? 0,
     };
     return {
       access_token: this.jwtService.sign(payload),

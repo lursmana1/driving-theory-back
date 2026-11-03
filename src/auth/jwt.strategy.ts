@@ -1,7 +1,19 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
+import { InjectRepository } from '@nestjs/typeorm';
 import { ExtractJwt, Strategy } from 'passport-jwt';
+import { Repository } from 'typeorm';
+import { parsePgInt } from '../common/utils/pg-row.util.js';
+import { User } from '../users/entities/user.entity';
+
+export type JwtPayload = {
+  sub: number;
+  email: string;
+  type?: 'admin' | 'user';
+  /** `users.tokenVersion` at signing time; absent on older tokens. */
+  ver?: number;
+};
 
 function cookieExtractor(req?: {
   headers?: { cookie?: string };
@@ -20,7 +32,10 @@ function cookieExtractor(req?: {
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor(configService: ConfigService) {
+  constructor(
+    configService: ConfigService,
+    @InjectRepository(User) private readonly users: Repository<User>,
+  ) {
     const secret = configService.get<string>('JWT_SECRET');
     if (!secret) {
       throw new Error('JWT_SECRET is not defined in configuration');
@@ -37,7 +52,21 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  validate(payload: { sub: number; email: string; type?: 'admin' | 'user' }) {
+  /**
+   * Rejects a token signed before the user's last password reset
+   * (`tokenVersion`), or whose user no longer exists. Tokens from before this
+   * check have no `ver` and count as version 0. One primary-key read per
+   * authenticated request.
+   */
+  async validate(payload: JwtPayload) {
+    const [row] = await this.users.query<{ tokenVersion: number | string }[]>(
+      'SELECT "tokenVersion" FROM users WHERE id = $1',
+      [payload.sub],
+    );
+    if (!row || parsePgInt(row.tokenVersion) !== (payload.ver ?? 0)) {
+      throw new UnauthorizedException();
+    }
+
     // This becomes req.user
     return {
       userId: payload.sub,

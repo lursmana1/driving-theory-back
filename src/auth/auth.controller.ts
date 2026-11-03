@@ -1,5 +1,6 @@
 import {
   Controller,
+  HttpCode,
   Post,
   Body,
   Res,
@@ -12,6 +13,9 @@ import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { PasswordResetService } from './password-reset.service';
 import { AuthGuard } from '@nestjs/passport';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import {
@@ -35,7 +39,10 @@ function getCookieOptions(): CookieOptions {
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly passwordResetService: PasswordResetService,
+  ) {}
 
   /** Frontend: redirect the browser to `googleLoginUrl` from this response. */
   @Get('config')
@@ -102,6 +109,37 @@ export class AuthController {
     res.cookie('access_token', result.access_token, getCookieOptions());
 
     // The token travels only in the httpOnly cookie; scripts never see it.
+    return { user: result.user };
+  }
+
+  /**
+   * Public. Always 200 with the same body, whether or not the address has an
+   * account (no account enumeration); the email is sent in the background.
+   */
+  @Post('forgot-password')
+  @HttpCode(200)
+  @Throttle({ default: { ttl: 15 * 60_000, limit: 5 } })
+  forgotPassword(@Body() dto: ForgotPasswordDto) {
+    this.passwordResetService.requestReset(dto.email, dto.locale ?? 'ka');
+    return { ok: true };
+  }
+
+  /**
+   * Public. Sets the new password from an emailed link, signs out every other
+   * device (tokenVersion) and signs this browser in.
+   */
+  @Post('reset-password')
+  @HttpCode(200)
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
+  async resetPassword(
+    @Body() dto: ResetPasswordDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.passwordResetService.resetPassword(
+      dto.token,
+      dto.password,
+    );
+    res.cookie('access_token', result.access_token, getCookieOptions());
     return { user: result.user };
   }
 

@@ -1,10 +1,18 @@
+import { studyDaySql } from '../common/sql/study-day.sql';
+
 /**
  * GET /auth/me in one statement: counts today as a visit and returns the user.
  *
- * Days are Georgian calendar days (Asia/Tbilisi, UTC+4, no DST). The first
- * call of a day extends the streak when the previous visit was yesterday and
+ * Days are study days: Tbilisi time, starting at 04:00 (`study-day.sql.ts`),
+ * so a visit at 01:30 still belongs to the evening before. The first call of
+ * a day extends the streak when the previous visit was yesterday and
  * restarts it at 1 otherwise; later calls the same day write nothing.
  * The UPDATE locks the row, so parallel first calls of a day count once.
+ *
+ * Only a later day writes (`<`, not `IS DISTINCT FROM`): days stored under
+ * the old midnight rule can be one day ahead of the 04:00 rule between 00:00
+ * and 04:00, and such a visit must neither reset the streak nor move
+ * `lastActiveDay` backwards.
  *
  * The SELECT runs on the statement snapshot and cannot see the CTE's write,
  * hence the UNION: the updated row when there was one, the stored row
@@ -12,7 +20,7 @@
  */
 export const TOUCH_LOGIN_STREAK_SQL = `
 WITH today AS (
-  SELECT (now() AT TIME ZONE 'Asia/Tbilisi')::date AS day
+  SELECT ${studyDaySql('now()')} AS day
 ),
 touched AS (
   UPDATE users u
@@ -30,7 +38,7 @@ touched AS (
       "lastActiveDay" = t.day
   FROM today t
   WHERE u.id = $1
-    AND u."lastActiveDay" IS DISTINCT FROM t.day
+    AND (u."lastActiveDay" IS NULL OR u."lastActiveDay" < t.day)
   RETURNING u.id, u.name, u.surname, u.email, u.type,
             u."currentStreak", u."longestStreak"
 )
