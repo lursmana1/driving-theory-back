@@ -42,6 +42,10 @@
     "db:ensure-login-streak": "ts-node -r tsconfig-paths/register scripts/ensure-login-streak.ts",
     "db:ensure-question-progress": "ts-node -r tsconfig-paths/register scripts/ensure-question-progress.ts",
     "db:ensure-password-resets": "ts-node -r tsconfig-paths/register scripts/ensure-password-resets.ts",
+    "db:ensure-study-plans": "ts-node -r tsconfig-paths/register scripts/ensure-study-plans.ts",
+    "db:ensure-cards": "ts-node -r tsconfig-paths/register scripts/ensure-cards.ts",
+    "db:seed-cards": "ts-node -r tsconfig-paths/register scripts/seed-cards.ts",
+    "db:link-sign-cards": "ts-node -r tsconfig-paths/register scripts/link-sign-cards.ts",
     "db:clear-exam-attempts": "ts-node -r tsconfig-paths/register scripts/clear-exam-attempts.ts --yes",
     "db:archive-outdated": "ts-node -r tsconfig-paths/register scripts/archive-outdated-questions.ts",
     "db:migrate-timestamptz": "ts-node -r tsconfig-paths/register scripts/migrate-timestamps-to-timestamptz.ts"

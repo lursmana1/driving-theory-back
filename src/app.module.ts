@@ -15,6 +15,7 @@ import { UserStatsModule } from './user-stats/user-stats.module';
 import { QuestionSyncModule } from './question-sync/question-sync.module';
 import { PracticeAnswersModule } from './practice-answers/practice-answers.module';
 import { MistakeTrainerModule } from './mistake-trainer/mistake-trainer.module';
+import { StudyPlansModule } from './study-plans/study-plans.module';
 import { buildTypeOrmOptions } from './config/typeorm.config';
 import { validateEnv } from './config/env.validation';
 
@@ -34,6 +35,7 @@ import { validateEnv } from './config/env.validation';
     ExamAttemptsModule,
     PracticeAnswersModule,
     MistakeTrainerModule,
+    StudyPlansModule,
     LeaderboardModule,
     QuestionsModule,
     UploadsModule,
