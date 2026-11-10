@@ -12,6 +12,7 @@ describe('parsePlanProgress', () => {
     expect(out).toEqual({
       done: { '0': { '0': '2026-11-04', '3': '2026-11-04' } },
       tests: { '0': { correct: 18, total: 20, passed: true } },
+      mistakes: {},
     });
   });
 
@@ -19,7 +20,45 @@ describe('parsePlanProgress', () => {
     expect(parsePlanProgress({ done: {}, tests: {} }, 7)).toEqual({
       done: {},
       tests: {},
+      mistakes: {},
     });
+  });
+
+  it('keeps day mistakes, deduped, and drops empty lists', () => {
+    const out = parsePlanProgress(
+      { done: {}, tests: {}, mistakes: { '0': [5, 7, 5], '1': [] } },
+      7,
+    );
+    expect(out?.mistakes).toEqual({ '0': [5, 7] });
+  });
+
+  it.each([
+    ['not a list', { '0': 5 }],
+    ['day past the plan', { '7': [1] }],
+    ['id not a positive int', { '0': [0] }],
+    ['id as a string', { '0': ['5'] }],
+    ['too many ids', { '0': Array.from({ length: 301 }, (_, i) => i + 1) }],
+    ['a list instead of days', [1, 2]],
+    ['id not an integer', { '0': [1.5] }],
+    [
+      'too many ids over all days',
+      Object.fromEntries(
+        ['0', '1', '2', '3'].map((d) => [
+          d,
+          Array.from({ length: 300 }, (_, i) => Number(d) * 1000 + i + 1),
+        ]),
+      ),
+    ],
+  ])('rejects mistakes: %s', (_label, mistakes) => {
+    expect(parsePlanProgress({ done: {}, tests: {}, mistakes }, 7)).toBeNull();
+  });
+
+  it('treats missing or null mistakes as none', () => {
+    for (const mistakes of [undefined, null]) {
+      expect(
+        parsePlanProgress({ done: {}, tests: {}, mistakes }, 7)?.mistakes,
+      ).toEqual({});
+    }
   });
 
   it.each([

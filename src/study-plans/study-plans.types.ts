@@ -110,6 +110,8 @@ export type StudyPlanProgress = {
   done: Record<string, Record<string, string>>;
   /** dayIndex → best day test result. */
   tests: Record<string, DayTestResult>;
+  /** dayIndex → question ids answered wrong that day and not fixed yet. */
+  mistakes: Record<string, number[]>;
 };
 
 export type SavedStudyPlanView = {
@@ -119,5 +121,32 @@ export type SavedStudyPlanView = {
   examDay: string | null;
   done: StudyPlanProgress['done'];
   tests: StudyPlanProgress['tests'];
+  mistakes: StudyPlanProgress['mistakes'];
   updatedAt: Date;
+};
+
+/** One card in a card lesson, text in the requested language. */
+export type LessonCard = {
+  id: string;
+  kind: string;
+  signNumber: string | null;
+  image: string | null;
+  title: string;
+  body: string | null;
+  tutor: string | null;
+  audio: string | null;
+  /** Tickets taught right after this card (primary links, this category). */
+  questionIds: number[];
+};
+
+/** `GET /study-plans/preview/card-lesson` (prototype). */
+export type CardLesson = {
+  categoryId: number;
+  subjectId: number;
+  from: number;
+  totalCards: number;
+  cards: LessonCard[];
+  /** Tickets of the subject with no card; only on the last page. */
+  withoutCard: number[];
+  questions: Question[];
 };

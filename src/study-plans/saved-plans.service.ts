@@ -24,6 +24,7 @@ function toView(row: PlanFields): SavedStudyPlanView {
     examDay: row.examDay,
     done: row.progress?.done ?? {},
     tests: row.progress?.tests ?? {},
+    mistakes: row.progress?.mistakes ?? {},
     updatedAt: row.updatedAt,
   };
 }

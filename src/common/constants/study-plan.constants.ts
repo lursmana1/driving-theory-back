@@ -55,6 +55,15 @@ export const STUDY_PLAN_TEST_MAX_QUESTIONS = 30;
 export const STUDY_PLAN_MAX_STEPS_PER_DAY = 40;
 
 /**
+ * Bounds of a day's mistake list in saved progress (question ids answered
+ * wrong that day, still to fix): a 7-day plan's biggest day has ~14 lessons.
+ */
+export const STUDY_PLAN_DAY_MISTAKES_MAX = 300;
+/** All days together (a bank has ~1k tickets; keeps the progress row small). */
+export const STUDY_PLAN_MISTAKES_TOTAL_MAX = 1000;
+export const STUDY_PLAN_QUESTION_ID_MAX = 1_000_000;
+
+/**
  * How long the per-category question id list (and the schedules built from
  * it) is cached in memory.
  */

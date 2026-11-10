@@ -15,7 +15,7 @@ import {
 
 /**
  * PUT /study-plans/me: the whole saved plan (choice + progress). `done` and
- * `tests` are checked in depth by `parsePlanProgress` (keys, dates, scores).
+ * `tests` (+ `mistakes`) are checked in depth by `parsePlanProgress` (keys, dates, scores).
  */
 export class SavePlanDto {
   @IsInt()
@@ -43,4 +43,9 @@ export class SavePlanDto {
 
   @IsObject()
   tests!: Record<string, unknown>;
+
+  /** dayIndex → question ids to fix. Optional for older clients. */
+  @IsOptional()
+  @IsObject()
+  mistakes?: Record<string, unknown>;
 }

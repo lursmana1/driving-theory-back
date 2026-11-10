@@ -1,5 +1,8 @@
 import {
+  STUDY_PLAN_DAY_MISTAKES_MAX,
   STUDY_PLAN_MAX_DAYS,
+  STUDY_PLAN_MISTAKES_TOTAL_MAX,
+  STUDY_PLAN_QUESTION_ID_MAX,
   STUDY_PLAN_MAX_STEPS_PER_DAY,
   STUDY_PLAN_TEST_MAX_QUESTIONS,
 } from '../common/constants/study-plan.constants.js';
@@ -35,14 +38,19 @@ function isTestResult(value: unknown): value is DayTestResult {
  * Validates client-sent plan progress and returns a clean copy (only the
  * known fields). Null when anything is out of shape: day keys 0..dayCount−1,
  * step keys 0..MAX_STEPS−1, done values real `YYYY-MM-DD` days, test scores
- * within the test size. Bounded, so a row stays small.
+ * within the test size, mistakes = bounded lists of question ids. Bounded,
+ * so a row stays small.
  */
 export function parsePlanProgress(
-  input: { done: unknown; tests: unknown },
+  input: { done: unknown; tests: unknown; mistakes?: unknown },
   dayCount: number,
 ): StudyPlanProgress | null {
   const maxDays = Math.min(dayCount, STUDY_PLAN_MAX_DAYS);
   if (!isPlainObject(input.done) || !isPlainObject(input.tests)) return null;
+  // Optional: clients before the mistakes list send none, and since a save
+  // replaces the whole plan, such a save stores no mistakes.
+  const mistakesIn = input.mistakes ?? {};
+  if (!isPlainObject(mistakesIn)) return null;
 
   const done: StudyPlanProgress['done'] = {};
   for (const [day, steps] of Object.entries(input.done)) {
@@ -65,5 +73,18 @@ export function parsePlanProgress(
       passed: result.passed,
     };
   }
-  return { done, tests };
+
+  const mistakes: StudyPlanProgress['mistakes'] = {};
+  let mistakeCount = 0;
+  for (const [day, ids] of Object.entries(mistakesIn)) {
+    if (!isIndexKey(day, maxDays) || !Array.isArray(ids)) return null;
+    if (ids.length > STUDY_PLAN_DAY_MISTAKES_MAX) return null;
+    if (!ids.every((id) => isIntIn(id, 1, STUDY_PLAN_QUESTION_ID_MAX))) {
+      return null;
+    }
+    mistakeCount += ids.length;
+    if (mistakeCount > STUDY_PLAN_MISTAKES_TOTAL_MAX) return null;
+    if (ids.length > 0) mistakes[day] = [...new Set(ids)];
+  }
+  return { done, tests, mistakes };
 }

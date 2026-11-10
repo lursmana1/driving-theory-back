@@ -29,6 +29,8 @@
     "audio:local-webm": "ts-node -r tsconfig-paths/register scripts/download-audio-to-webm.ts",
     "audio:ka:webm": "ts-node -r tsconfig-paths/register scripts/migrate-georgian-audio-to-webm.ts",
     "audio:audit": "ts-node -r tsconfig-paths/register scripts/audit-audio-objects.ts",
+    "audio:cards": "ts-node -r tsconfig-paths/register scripts/sync-card-audio.ts",
+    "audio:cards:upload": "ts-node -r tsconfig-paths/register scripts/upload-card-audio.ts",
     "sync:recover": "ts-node -r tsconfig-paths/register scripts/recover-questions.ts",
     "import:questions:csv": "ts-node -r tsconfig-paths/register scripts/import-questions-from-csv.ts",
     "import:questions": "ts-node -r tsconfig-paths/register scripts/import-questions-from-csv.ts",
