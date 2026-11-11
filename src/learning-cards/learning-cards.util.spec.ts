@@ -104,7 +104,7 @@ describe('buildSignCards', () => {
 describe('buildSignLinks', () => {
   const known = new Set(['sign-3.24', 'sign-3.25', 'marking-1.1']);
 
-  it('links sign-subject tickets; primary = first sign in the question', () => {
+  it('links tickets by the signs they name; primary = first sign in the question', () => {
     const { links, unlinked } = buildSignLinks(
       [
         {
@@ -125,9 +125,17 @@ describe('buildSignLinks', () => {
           question: 'ნიშანი 3.24',
           question_explained: null,
         },
+        {
+          id: 13,
+          subject: 20,
+          question: 'ვინ გადის პირველი?',
+          question_explained: null,
+        },
       ],
       known,
     );
+    // A rule-subject ticket naming a sign is linked too (mislabelled sign
+    // ticket); one with no sign is not reported as unlinked.
     expect(links).toEqual([
       {
         questionId: 10,
@@ -140,6 +148,13 @@ describe('buildSignLinks', () => {
         questionId: 10,
         cardId: 'sign-3.24',
         primary: false,
+        source: 'regex',
+        confirmed: true,
+      },
+      {
+        questionId: 12,
+        cardId: 'sign-3.24',
+        primary: true,
         source: 'regex',
         confirmed: true,
       },

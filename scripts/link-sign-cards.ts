@@ -1,8 +1,10 @@
 /**
- * Links tickets in sign subjects to sign / marking cards, from the sign
- * numbers named in the ticket's own Georgian text (question + explanation).
- * Replaces earlier `regex` links; questions that have any `gemini` or
- * `manual` link are left alone. Safe to re-run.
+ * Links tickets to sign / marking cards, from the sign numbers named in the
+ * ticket's own Georgian text (question + explanation): every ticket of a sign
+ * subject, and tickets of other subjects that no rule card claims (the source
+ * labels some sign tickets with a rule subject). Replaces earlier `regex`
+ * links; questions that have any `gemini` or `manual` link (rule cards) are
+ * left alone, so run `db:seed-cards` first. Safe to re-run.
  *
  *   npx ts-node -r tsconfig-paths/register scripts/link-sign-cards.ts [--dry-run]
  */
@@ -32,8 +34,7 @@ async function main() {
     }
     const questions = await ds.query<LinkSourceQuestion[]>(
       `SELECT id, subject, question, question_explained FROM questions
-       WHERE lang = 'ka' AND subject = ANY($1::int[]) ORDER BY id`,
-      [SIGN_SUBJECT_IDS],
+       WHERE lang = 'ka' AND subject IS NOT NULL ORDER BY id`,
     );
     const handEdited = new Set(
       (
@@ -46,9 +47,12 @@ async function main() {
       questions.filter((q) => !handEdited.has(Number(q.id))),
       known,
     );
+    const signSubjectCount = questions.filter((q) =>
+      SIGN_SUBJECT_IDS.includes(Number(q.subject)),
+    ).length;
     const linkedQuestions = new Set(links.map((l) => l.questionId)).size;
     console.log(
-      `sign-subject tickets: ${questions.length}; linked: ${linkedQuestions} (${links.length} links); ` +
+      `tickets checked: ${questions.length} (sign subjects: ${signSubjectCount}); linked: ${linkedQuestions} (${links.length} links); ` +
         `without a card: ${unlinked.length}; kept hand-edited: ${handEdited.size}`,
     );
     if (unlinked.length) {

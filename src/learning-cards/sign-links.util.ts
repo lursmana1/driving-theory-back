@@ -30,10 +30,15 @@ function cardIdsIn(
 const SIGN_SUBJECTS: ReadonlySet<number> = new Set(SIGN_SUBJECT_IDS);
 
 /**
- * Regex links for tickets in sign subjects. Numbers that are not a known card
- * are ignored. Primary card = the first sign named in the question; if the
- * question names none, the first one in the explanation. Confirmed, because
- * the sign is named in the ticket's own text.
+ * Regex links from the sign numbers named in a ticket's own text. Numbers
+ * that are not a known card are ignored. Primary card = the first sign named
+ * in the question; if the question names none, the first one in the
+ * explanation. Confirmed, because the sign is named in the ticket's text.
+ *
+ * Every given ticket is linked, whatever its subject: the caller passes sign-
+ * subject tickets plus tickets of other subjects that no rule card claims
+ * (the source labels some sign tickets with a rule subject). `unlinked` lists
+ * only sign-subject tickets with no known sign.
  */
 export function buildSignLinks(
   questions: LinkSourceQuestion[],
@@ -42,7 +47,6 @@ export function buildSignLinks(
   const links: QuestionCardRow[] = [];
   const unlinked: number[] = [];
   for (const q of questions) {
-    if (q.subject == null || !SIGN_SUBJECTS.has(q.subject)) continue;
     const fromQuestion = cardIdsIn(q.question, knownCardIds);
     const all = [
       ...new Set([
@@ -51,7 +55,9 @@ export function buildSignLinks(
       ]),
     ];
     if (all.length === 0) {
-      unlinked.push(q.id);
+      if (q.subject != null && SIGN_SUBJECTS.has(q.subject)) {
+        unlinked.push(q.id);
+      }
       continue;
     }
     const primary = fromQuestion[0] ?? all[0];
