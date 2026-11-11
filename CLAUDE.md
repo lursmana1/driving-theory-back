@@ -26,6 +26,7 @@ The rule files below are the single source of truth, shared with Cursor. Edit th
 - Known bugs and patterns not to copy: @.cursor/rules/known-weaknesses.mdc
 
 For feature work also read `docs/roadmap.md` and keep its order.
+Study plan / learning cards / card audio: resume from `docs/study-plan-status.md` (state, scripts, next steps).
 
 ## Non-negotiables
 
