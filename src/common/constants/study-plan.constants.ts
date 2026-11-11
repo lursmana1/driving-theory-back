@@ -26,7 +26,7 @@ export const STUDY_PLAN_REVIEW_SHARE = 0.15;
 export const STUDY_PLAN_MIN_REVIEW_DAYS = 2;
 export const STUDY_PLAN_MIN_REVIEW_DAYS_FROM_DAYS = 7;
 
-/** Lesson size bounds (questions of one subject). */
+/** Lesson size bounds (questions of one subject; a card counts as one). */
 export const STUDY_PLAN_LESSON_MIN = 6;
 export const STUDY_PLAN_LESSON_MAX = 14;
 
@@ -79,6 +79,8 @@ export const STUDY_PLAN_SCHEDULE_CACHE_MAX = 32;
 export const STUDY_PLAN_SECONDS_LEARN = 35;
 export const STUDY_PLAN_SECONDS_QUIZ = 20;
 export const STUDY_PLAN_SECONDS_EXAM = 30;
+/** Reading one lesson card (sign / rule) and its explanation. */
+export const STUDY_PLAN_SECONDS_CARD = 30;
 
 /**
  * Subject ids in teaching order (prava `src/data/subjects.json`): signs first

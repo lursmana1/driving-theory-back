@@ -18,6 +18,8 @@ import {
   studyDayOf,
 } from './schedule/plan-length.util.js';
 import { buildSchedule } from './schedule/schedule.builder.util.js';
+import { PlanCardsService } from './plan-cards.service.js';
+import type { PlanSubjects } from './schedule/plan-subjects.util.js';
 import { StudyPlansQueryService } from './study-plans.query.service.js';
 import type {
   PlanDay,
@@ -33,9 +35,14 @@ import type {
 
 function toPreviewLesson({
   questionIds,
+  cardIds,
   ...lesson
 }: PlanLesson): PreviewLesson {
-  return { ...lesson, questionCount: questionIds.length };
+  return {
+    ...lesson,
+    questionCount: questionIds.length,
+    cardCount: cardIds.length,
+  };
 }
 
 function toPreviewDay(day: PlanDay): PreviewDay {
@@ -61,13 +68,17 @@ export class StudyPlansService {
     Map<string, PlanSchedule>
   >();
 
-  constructor(private readonly queries: StudyPlansQueryService) {}
+  constructor(
+    private readonly queries: StudyPlansQueryService,
+    private readonly cards: PlanCardsService,
+  ) {}
 
   private async schedule(
     query: PlanQuery,
     now: Date,
   ): Promise<{
     schedule: PlanSchedule;
+    input: PlanSubjects;
     startDay: string;
     examDay: string | null;
   }> {
@@ -85,7 +96,8 @@ export class StudyPlansService {
         reason: length.reason,
       });
     }
-    const subjects = await this.queries.loadSubjectQuestions(query.categoryId);
+    const input = await this.cards.loadPlanSubjects(query.categoryId);
+    const { subjects } = input;
     if (subjects.length === 0) {
       throw new NotFoundException(
         `No questions for category ${query.categoryId}`,
@@ -97,7 +109,7 @@ export class StudyPlansService {
       length.dayCount,
       startDay,
     );
-    return { schedule, startDay, examDay: length.examDay };
+    return { schedule, input, startDay, examDay: length.examDay };
   }
 
   private cachedSchedule(
@@ -152,7 +164,7 @@ export class StudyPlansService {
     lang: string,
     now = new Date(),
   ): Promise<PlanDaySession> {
-    const { schedule } = await this.schedule(query, now);
+    const { schedule, input } = await this.schedule(query, now);
     const day = schedule.days[index];
     if (!day) throw new NotFoundException(`Day ${index} not in this plan`);
     const steps = buildDaySession(
@@ -160,12 +172,16 @@ export class StudyPlansService {
       daySessionSeed(query.categoryId, schedule.dayCount, index),
     );
     const ids = [...new Set(steps.flatMap((s) => s.questionIds))];
-    const questions = await this.queries.loadQuestions(ids, lang);
+    const [questions, cards] = await Promise.all([
+      this.queries.loadQuestions(ids, lang),
+      this.cards.loadLessonCards(day.lessons, input, lang),
+    ]);
     return {
       ...toPreviewDay(day),
       categoryId: query.categoryId,
       dayCount: schedule.dayCount,
       steps,
+      cards,
       questions,
     };
   }

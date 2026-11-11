@@ -7,6 +7,7 @@ import {
   buildSchedule,
   interleaveLessons,
   reviewDayCount,
+  splitLessonsByTime,
 } from './schedule.builder.util';
 import type { SubjectQuestions } from '../study-plans.types';
 
@@ -52,7 +53,15 @@ describe('lesson builder', () => {
       { subjectId: 3, questionIds: [5, 2, 5] },
       { subjectId: 4, questionIds: [] },
     ]);
-    expect(ordered).toEqual([{ subjectId: 3, questionIds: [2, 5] }]);
+    expect(ordered).toEqual([
+      {
+        subjectId: 3,
+        units: [
+          { cardId: null, questionIds: [2] },
+          { cardId: null, questionIds: [5] },
+        ],
+      },
+    ]);
   });
 
   it('keeps lesson size within 6..14', () => {
@@ -148,5 +157,41 @@ describe('schedule builder', () => {
       return plan.totalQuestions / plan.learnDays;
     };
     expect(avg(7)).toBeGreaterThan(avg(28) * 4);
+  });
+});
+
+describe('splitLessonsByTime', () => {
+  const lesson = (id: string, questions: number, cards = 0) => ({
+    id,
+    subjectId: 3,
+    part: 1,
+    parts: 1,
+    questionIds: Array.from({ length: questions }, (_, i) => i),
+    cardIds: Array.from({ length: cards }, (_, i) => `c${i}`),
+  });
+
+  it('gives card-heavy lessons fewer per day', () => {
+    const lessons = [
+      lesson('a', 10, 10),
+      lesson('b', 10, 10),
+      lesson('c', 10),
+      lesson('d', 10),
+      lesson('e', 10),
+      lesson('f', 10),
+    ];
+    const days = splitLessonsByTime(lessons, 3);
+    expect(days.map((d) => d.map((l) => l.id))).toEqual([
+      ['a'],
+      ['b', 'c'],
+      ['d', 'e', 'f'],
+    ]);
+  });
+
+  it('never leaves a day empty', () => {
+    const days = splitLessonsByTime(
+      [lesson('a', 14, 14), lesson('b', 1), lesson('c', 1)],
+      3,
+    );
+    expect(days.every((d) => d.length > 0)).toBe(true);
   });
 });

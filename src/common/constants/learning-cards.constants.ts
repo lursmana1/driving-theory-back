@@ -25,9 +25,3 @@ export type CardLang = (typeof CARD_LANGS)[number];
 
 /** Order step between sign groups, so a group's signs stay together. */
 export const CARD_GROUP_ORDER_STEP = 1000;
-
-/** Card lesson (prototype): cards per request, default and cap. */
-export const CARD_LESSON_DEFAULT_CARDS = 8;
-export const CARD_LESSON_MAX_CARDS = 30;
-/** Tickets with no card, at most, on a lesson's last page (payload bound). */
-export const CARD_LESSON_WITHOUT_CARD_MAX = 50;

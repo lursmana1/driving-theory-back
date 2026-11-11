@@ -16,14 +16,11 @@ import {
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { STATIC_PUBLIC_CACHE_CONTROL } from '../common/constants/http-cache.constants.js';
 import { parseLang } from '../common/utils/parse-lang.util.js';
-import { CardLessonQueryDto } from './dto/card-lesson-query.dto.js';
-import { CardLessonsService } from './card-lessons.service.js';
 import { PlanPreviewQueryDto } from './dto/plan-preview-query.dto.js';
 import { SavePlanDto } from './dto/save-plan.dto.js';
 import { SavedPlansService } from './saved-plans.service.js';
 import { StudyPlansService } from './study-plans.service.js';
 import type {
-  CardLesson,
   PlanDaySession,
   PlanQuery,
   SavedStudyPlanView,
@@ -50,7 +47,6 @@ export class StudyPlansController {
   constructor(
     private readonly plans: StudyPlansService,
     private readonly saved: SavedPlansService,
-    private readonly cardLessons: CardLessonsService,
   ) {}
 
   @Get('preview')
@@ -73,25 +69,6 @@ export class StudyPlansController {
       toPlanQuery(query),
       index,
       parseLang(langQuery, langHeader),
-    );
-  }
-
-  /** Prototype: a subject's cards in teaching order, each with its tickets. */
-  @Get('preview/card-lesson')
-  @Header('Cache-Control', STATIC_PUBLIC_CACHE_CONTROL)
-  // The language may come from Accept-Language: shared caches must key on it.
-  @Header('Vary', 'Accept-Language')
-  getCardLesson(
-    @Query() query: CardLessonQueryDto,
-    @Query('lang') langQuery?: string,
-    @Headers('accept-language') langHeader?: string,
-  ): Promise<CardLesson> {
-    return this.cardLessons.getLesson(
-      query.category,
-      query.subject,
-      parseLang(langQuery, langHeader),
-      query.from,
-      query.count,
     );
   }
 

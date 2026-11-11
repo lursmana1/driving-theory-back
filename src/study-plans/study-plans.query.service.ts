@@ -4,6 +4,10 @@ import { In, Repository } from 'typeorm';
 import { DEFAULT_LANG } from '../common/constants/lang.constants.js';
 import { STUDY_PLAN_QUESTION_CACHE_MS } from '../common/constants/study-plan.constants.js';
 import { parsePgInt } from '../common/utils/pg-row.util.js';
+import {
+  cachedPromise,
+  type PromiseCacheEntry,
+} from '../common/utils/promise-cache.util.js';
 import { Question } from '../questions/entities/question.entity.js';
 import type { SubjectQuestions } from './study-plans.types.js';
 
@@ -35,7 +39,7 @@ export class StudyPlansQueryService {
    */
   private readonly cache = new Map<
     number,
-    { at: number; data: Promise<readonly SubjectQuestions[]> }
+    PromiseCacheEntry<readonly SubjectQuestions[]>
   >();
 
   constructor(
@@ -47,15 +51,13 @@ export class StudyPlansQueryService {
     categoryId: number,
     now = Date.now(),
   ): Promise<readonly SubjectQuestions[]> {
-    const hit = this.cache.get(categoryId);
-    if (hit && now - hit.at < STUDY_PLAN_QUESTION_CACHE_MS) return hit.data;
-
-    const entry = { at: now, data: this.querySubjectQuestions(categoryId) };
-    this.cache.set(categoryId, entry);
-    entry.data.catch(() => {
-      if (this.cache.get(categoryId) === entry) this.cache.delete(categoryId);
-    });
-    return entry.data;
+    return cachedPromise(
+      this.cache,
+      categoryId,
+      STUDY_PLAN_QUESTION_CACHE_MS,
+      () => this.querySubjectQuestions(categoryId),
+      now,
+    );
   }
 
   private async querySubjectQuestions(

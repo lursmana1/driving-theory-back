@@ -8,6 +8,7 @@ import {
   STUDY_PLAN_REVIEW_DAY_MAX_QUESTIONS,
   STUDY_PLAN_REVIEW_MAX_QUESTIONS,
   STUDY_PLAN_REVIEW_SHARE,
+  STUDY_PLAN_SECONDS_CARD,
   STUDY_PLAN_SECONDS_EXAM,
   STUDY_PLAN_SECONDS_LEARN,
   STUDY_PLAN_SECONDS_QUIZ,
@@ -21,7 +22,12 @@ import type {
   PlanStep,
   ScheduleInput,
 } from '../study-plans.types.js';
-import { buildLessons, lessonSizeFor } from './lesson.builder.util.js';
+import {
+  buildLessons,
+  lessonSizeFor,
+  splitByWeight,
+  subjectWeight,
+} from './lesson.builder.util.js';
 import { addStudyDays } from './plan-length.util.js';
 
 /** Days at the end with no new lessons (review + full mocks). */
@@ -59,10 +65,43 @@ export function interleaveLessons(bySubject: PlanLesson[][]): PlanLesson[] {
 }
 
 function stepSeconds(step: PlanStep): number {
-  if (step.kind === 'learn')
-    return step.questionCount * STUDY_PLAN_SECONDS_LEARN;
+  if (step.kind === 'learn') {
+    return (
+      step.questionCount * STUDY_PLAN_SECONDS_LEARN +
+      (step.cardCount ?? 0) * STUDY_PLAN_SECONDS_CARD
+    );
+  }
   if (step.kind === 'exam') return step.questionCount * STUDY_PLAN_SECONDS_EXAM;
   return step.questionCount * STUDY_PLAN_SECONDS_QUIZ;
+}
+
+/** Estimated learn time of a lesson: its cards and tickets. */
+function lessonSeconds(lesson: PlanLesson): number {
+  return (
+    lesson.questionIds.length * STUDY_PLAN_SECONDS_LEARN +
+    lesson.cardIds.length * STUDY_PLAN_SECONDS_CARD
+  );
+}
+
+/**
+ * Cuts the ordered lessons into `days` runs of near-equal learn time (a
+ * lesson goes to the day its time midpoint falls in), so card-heavy sign
+ * lessons spread over more days. Every day gets at least one lesson
+ * (needs `lessons.length >= days`); if time-splitting would leave a day
+ * empty, falls back to an even split by lesson count.
+ */
+export function splitLessonsByTime(
+  lessons: PlanLesson[],
+  days: number,
+): PlanLesson[][] {
+  const out = splitByWeight(lessons, days, lessonSeconds);
+  if (out.every((d) => d.length > 0)) return out;
+  return out.map((_, i) =>
+    lessons.slice(
+      Math.floor((i * lessons.length) / days),
+      Math.floor(((i + 1) * lessons.length) / days),
+    ),
+  );
 }
 
 function learnDaySteps(
@@ -76,6 +115,7 @@ function learnDaySteps(
     kind: 'learn',
     lessonId: lesson.id,
     questionCount: lesson.questionIds.length,
+    ...(lesson.cardIds.length ? { cardCount: lesson.cardIds.length } : {}),
   }));
   if (learnIndex > 0) {
     steps.push({
@@ -113,20 +153,20 @@ export function buildSchedule(input: ScheduleInput): PlanSchedule {
     (n, s) => n + new Set(s.questionIds).size,
     0,
   );
+  // Lesson weight: tickets, and cards with no ticket here (they still teach).
+  const totalWeight = subjects.reduce((n, s) => n + subjectWeight(s), 0);
   const plannedLearnDays = dayCount - reviewDayCount(dayCount);
-  const lessonSize = lessonSizeFor(
-    Math.ceil(totalQuestions / plannedLearnDays),
-  );
+  const lessonSize = lessonSizeFor(Math.ceil(totalWeight / plannedLearnDays));
   const lessons = interleaveLessons(buildLessons(subjects, lessonSize));
   const learnDays = Math.min(plannedLearnDays, lessons.length);
+
+  const lessonsByDay = splitLessonsByTime(lessons, learnDays);
 
   const days: PlanDay[] = [];
   for (let index = 0; index < dayCount; index++) {
     const date = addStudyDays(startDay, index);
     if (index < learnDays) {
-      const from = Math.floor((index * lessons.length) / learnDays);
-      const to = Math.floor(((index + 1) * lessons.length) / learnDays);
-      const dayLessons = lessons.slice(from, to);
+      const dayLessons = lessonsByDay[index];
       const steps = learnDaySteps(dayLessons, index, examQuestionCount);
       days.push({
         index,

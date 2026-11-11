@@ -1,19 +1,37 @@
 import type { Question } from '../questions/entities/question.entity.js';
 
+/**
+ * One piece a lesson is never cut inside: a card with the tickets taught
+ * under it (possibly none: the card then only teaches), or one ticket with
+ * no card (`cardId` null).
+ */
+export type LessonUnit = {
+  cardId: string | null;
+  questionIds: readonly number[];
+};
+
 /** Live question ids of one subject in one category. */
 export type SubjectQuestions = {
   subjectId: number;
   questionIds: readonly number[];
+  /**
+   * Card subjects only: the subject in teaching order, card by card, then
+   * its tickets with no card. `questionIds` is then the same ids, flattened.
+   */
+  units?: readonly LessonUnit[];
 };
 
-/** 6–14 questions of one subject. Id `<subjectId>-<part>`. */
+/** 6–14 questions (cards count as one) of one subject. Id `<subjectId>-<part>`. */
 export type PlanLesson = {
   id: string;
   subjectId: number;
   /** 1-based part of the subject, out of `parts`. */
   part: number;
   parts: number;
+  /** In teaching order: each card's tickets right after it. */
   questionIds: number[];
+  /** Cards taught in this lesson, in order; empty for subjects with no cards. */
+  cardIds: string[];
 };
 
 export type PlanStepKind = 'learn' | 'review' | 'mix' | 'test' | 'exam';
@@ -24,6 +42,8 @@ export type PlanStep = {
   lessonId?: string;
   /** Questions in the step (`review`: at most this many due cards). */
   questionCount: number;
+  /** `learn` steps of card lessons: cards taught before / between tickets. */
+  cardCount?: number;
 };
 
 export type PlanDayKind = 'learn' | 'review';
@@ -59,9 +79,10 @@ export type ScheduleInput = {
   examQuestionCount: number;
 };
 
-/** Preview lessons go out without question ids. */
-export type PreviewLesson = Omit<PlanLesson, 'questionIds'> & {
+/** Preview lessons go out without question / card ids. */
+export type PreviewLesson = Omit<PlanLesson, 'questionIds' | 'cardIds'> & {
   questionCount: number;
+  cardCount: number;
 };
 
 export type PreviewDay = Omit<PlanDay, 'lessons'> & {
@@ -92,6 +113,8 @@ export type DaySessionStep = {
   /** Empty for `review` (due cards come from the trainer) and `exam`. */
   questionIds: number[];
   questionCount: number;
+  /** `learn` steps of card lessons. */
+  cardCount?: number;
 };
 
 /** `GET /study-plans/preview/days/:index`. */
@@ -99,6 +122,8 @@ export type PlanDaySession = Omit<PreviewDay, 'steps'> & {
   categoryId: number;
   dayCount: number;
   steps: DaySessionStep[];
+  /** Cards of the day's lessons (`PlanLesson.cardIds`), text in `lang`. */
+  cards: LessonCard[];
   questions: Question[];
 };
 
@@ -125,9 +150,11 @@ export type SavedStudyPlanView = {
   updatedAt: Date;
 };
 
-/** One card in a card lesson, text in the requested language. */
+/** One card of a day's lessons, text in the requested language. */
 export type LessonCard = {
   id: string;
+  /** The day lesson (`PlanLesson.id`) that teaches it. */
+  lessonId: string;
   kind: string;
   signNumber: string | null;
   image: string | null;
@@ -135,18 +162,6 @@ export type LessonCard = {
   body: string | null;
   tutor: string | null;
   audio: string | null;
-  /** Tickets taught right after this card (primary links, this category). */
+  /** Tickets taught right after this card in its lesson (this category). */
   questionIds: number[];
-};
-
-/** `GET /study-plans/preview/card-lesson` (prototype). */
-export type CardLesson = {
-  categoryId: number;
-  subjectId: number;
-  from: number;
-  totalCards: number;
-  cards: LessonCard[];
-  /** Tickets of the subject with no card; only on the last page. */
-  withoutCard: number[];
-  questions: Question[];
 };

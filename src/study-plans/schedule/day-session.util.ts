@@ -57,6 +57,7 @@ export function buildDaySession(day: PlanDay, seed: number): DaySessionStep[] {
       ...(step.lessonId ? { lessonId: step.lessonId } : {}),
       questionIds,
       questionCount: step.questionCount,
+      ...(step.cardCount ? { cardCount: step.cardCount } : {}),
     };
   });
 }

@@ -19,7 +19,16 @@ function setup(data: readonly SubjectQuestions[] = subjects) {
         Promise.resolve(ids.map((id) => ({ id }))),
       ),
   };
-  return { queries, service: new StudyPlansService(queries as never) };
+  const input = { subjects: data, cardTickets: new Map() };
+  const cards = {
+    loadPlanSubjects: jest.fn().mockResolvedValue(input),
+    loadLessonCards: jest.fn().mockResolvedValue([]),
+  };
+  return {
+    queries,
+    cards,
+    service: new StudyPlansService(queries as never, cards as never),
+  };
 }
 
 describe('StudyPlansService', () => {

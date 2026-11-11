@@ -3,7 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from '../auth/auth.module';
 import { Question } from '../questions/entities/question.entity';
 import { StudyPlan } from './entities/study-plan.entity';
-import { CardLessonsService } from './card-lessons.service';
+import { PlanCardsService } from './plan-cards.service';
 import { SavedPlansService } from './saved-plans.service';
 import { StudyPlansController } from './study-plans.controller';
 import { StudyPlansQueryService } from './study-plans.query.service';
@@ -14,7 +14,7 @@ import { StudyPlansService } from './study-plans.service';
   controllers: [StudyPlansController],
   providers: [
     StudyPlansService,
-    CardLessonsService,
+    PlanCardsService,
     StudyPlansQueryService,
     SavedPlansService,
   ],
