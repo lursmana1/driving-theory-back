@@ -2,7 +2,7 @@ import type { DaySessionStep, PlanDay } from '../study-plans.types.js';
 
 /**
  * Shuffle seed of one plan day. Unique per (category 0–9, day count ≤ 60,
- * day index < 60). Changing it reshuffles every saved plan's mix and test.
+ * day index < 60). Changing it reshuffles every saved plan's day exam.
  */
 export function daySessionSeed(
   categoryId: number,
@@ -35,21 +35,42 @@ export function seededShuffle<T>(items: readonly T[], seed: number): T[] {
 }
 
 /**
- * Question ids for each step of a day. `learn` keeps lesson order; `mix`
- * and `test` take a shuffled sample of the day's new questions (stable for
- * the same seed, so a reload shows the same test).
+ * Question ids for each step of a day. `learn` keeps lesson order; `test`
+ * (the mixed day exam) is yesterday's extra tickets plus a sample of today's
+ * new ones and of older ones (`olderIds`), shuffled together; `mix` (review
+ * days) is the extra tickets left by the last learn day; `extra` (short
+ * plans, optional) is the day's share of the remaining tickets. Stable for the same
+ * seed, so a reload shows the same rounds.
  */
-export function buildDaySession(day: PlanDay, seed: number): DaySessionStep[] {
+export function buildDaySession(
+  day: PlanDay,
+  seed: number,
+  olderIds: readonly number[] = [],
+): DaySessionStep[] {
   const dayIds = day.lessons.flatMap((l) => l.questionIds);
   const lessonById = new Map(day.lessons.map((l) => [l.id, l]));
   return day.steps.map((step, i) => {
+    const stepSeed = seed * 31 + i;
     let questionIds: number[] = [];
     if (step.kind === 'learn' && step.lessonId) {
       questionIds = lessonById.get(step.lessonId)?.questionIds ?? [];
-    } else if (step.kind === 'mix' || step.kind === 'test') {
-      questionIds = seededShuffle(dayIds, seed * 31 + i).slice(
-        0,
-        step.questionCount,
+    } else if (step.kind === 'mix') {
+      questionIds = [...day.carryIds];
+    } else if (step.kind === 'extra') {
+      questionIds = [...day.optionalIds];
+    } else if (step.kind === 'test') {
+      const parts = step.examParts ?? {
+        carry: 0,
+        today: step.questionCount,
+        older: 0,
+      };
+      questionIds = seededShuffle(
+        [
+          ...day.carryIds.slice(0, parts.carry),
+          ...seededShuffle(dayIds, stepSeed).slice(0, parts.today),
+          ...seededShuffle(olderIds, stepSeed + 1).slice(0, parts.older),
+        ],
+        stepSeed + 2,
       );
     }
     return {
@@ -60,4 +81,17 @@ export function buildDaySession(day: PlanDay, seed: number): DaySessionStep[] {
       ...(step.cardCount ? { cardCount: step.cardCount } : {}),
     };
   });
+}
+
+/** Tickets a day asks for the first time: its carried-over extras and its taught ones. */
+export function metIds(day: PlanDay): number[] {
+  return [...day.carryIds, ...day.lessons.flatMap((l) => l.questionIds)];
+}
+
+/** Tickets met before day `index`: the pool for the day exam's "older" questions. */
+export function olderQuestionIds(
+  days: readonly PlanDay[],
+  index: number,
+): number[] {
+  return days.slice(0, index).flatMap(metIds);
 }

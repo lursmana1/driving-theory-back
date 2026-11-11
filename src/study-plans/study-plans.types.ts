@@ -1,3 +1,4 @@
+import type { PlanDepth } from '../common/constants/study-plan.constants.js';
 import type { Question } from '../questions/entities/question.entity.js';
 
 /**
@@ -9,6 +10,9 @@ export type LessonUnit = {
   cardId: string | null;
   questionIds: readonly number[];
 };
+
+/** The mixed day exam: yesterday's extra tickets, today's new ones, older ones. */
+export type DayExamParts = { carry: number; today: number; older: number };
 
 /** Live question ids of one subject in one category. */
 export type SubjectQuestions = {
@@ -28,13 +32,26 @@ export type PlanLesson = {
   /** 1-based part of the subject, out of `parts`. */
   part: number;
   parts: number;
-  /** In teaching order: each card's tickets right after it. */
+  /** Taught in the lesson, in order: each card's first tickets right after it. */
   questionIds: number[];
+  /**
+   * A card's tickets beyond the taught ones. Full plans ask them in the next
+   * day's exam (`PlanDay.carryIds`); short plans put them in the optional
+   * `extra` rounds (`PlanDay.optionalIds`).
+   */
+  restIds: number[];
   /** Cards taught in this lesson, in order; empty for subjects with no cards. */
   cardIds: string[];
 };
 
-export type PlanStepKind = 'learn' | 'review' | 'mix' | 'test' | 'exam';
+export type PlanStepKind =
+  | 'learn'
+  | 'review'
+  | 'mix'
+  | 'test'
+  | 'exam'
+  /** Short plans, optional: the day's remaining tickets. */
+  | 'extra';
 
 export type PlanStep = {
   kind: PlanStepKind;
@@ -44,6 +61,8 @@ export type PlanStep = {
   questionCount: number;
   /** `learn` steps of card lessons: cards taught before / between tickets. */
   cardCount?: number;
+  /** `test` (mixed day exam): how many tickets of each kind it holds. */
+  examParts?: DayExamParts;
 };
 
 export type PlanDayKind = 'learn' | 'review';
@@ -55,6 +74,13 @@ export type PlanDay = {
   date: string;
   kind: PlanDayKind;
   lessons: PlanLesson[];
+  /** Extra tickets of the previous learn day's lessons, asked in today's day exam. */
+  carryIds: number[];
+  /**
+   * Short plans: optional tickets for today's `extra` round, spread evenly
+   * over the learn days (never before their card is taught).
+   */
+  optionalIds: number[];
   newQuestions: number;
   steps: PlanStep[];
   minutes: number;
@@ -62,6 +88,10 @@ export type PlanDay = {
 
 export type PlanSchedule = {
   dayCount: number;
+  /** `short` up to `STUDY_PLAN_SHORT_MAX_DAYS`: essentials first. */
+  mode: PlanDepth['mode'];
+  /** Short plans: tickets in the optional `extra` steps (not required). */
+  optionalQuestions: number;
   learnDays: number;
   lessonSize: number;
   totalQuestions: number;
@@ -80,12 +110,18 @@ export type ScheduleInput = {
 };
 
 /** Preview lessons go out without question / card ids. */
-export type PreviewLesson = Omit<PlanLesson, 'questionIds' | 'cardIds'> & {
+export type PreviewLesson = Omit<
+  PlanLesson,
+  'questionIds' | 'cardIds' | 'restIds'
+> & {
   questionCount: number;
   cardCount: number;
 };
 
-export type PreviewDay = Omit<PlanDay, 'lessons'> & {
+export type PreviewDay = Omit<
+  PlanDay,
+  'lessons' | 'carryIds' | 'optionalIds'
+> & {
   lessons: PreviewLesson[];
 };
 
@@ -96,6 +132,13 @@ export type StudyPlanPreview = Omit<PlanSchedule, 'days'> & {
   examDay: string | null;
   /** Shorter than the recommended minimum (14 days). */
   intensive: boolean;
+  /**
+   * Shortest plan whose average day fits `STUDY_PLAN_TARGET_MINUTES`; null
+   * when even the longest plan doesn't.
+   */
+  daysForTargetMinutes: number | null;
+  /** The daily time `daysForTargetMinutes` aims at (`STUDY_PLAN_TARGET_MINUTES`). */
+  targetMinutes: number;
   days: PreviewDay[];
 };
 

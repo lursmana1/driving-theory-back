@@ -70,10 +70,10 @@ describe('buildPlanSubjects', () => {
     expect(warning.every((l) => l.parts === 3)).toBe(true);
   });
 
-  it('teaching-only cards add learn time to the day', () => {
+  it('teaching-only cards add learn time to the day (full plans)', () => {
     const plan = buildSchedule({
       subjects,
-      dayCount: 3,
+      dayCount: 28,
       startDay: '2026-11-04',
       examQuestionCount: 30,
     });

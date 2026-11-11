@@ -17,6 +17,7 @@ const day: PlanDay = {
       parts: 2,
       questionIds: [1, 2, 3, 4, 5, 6],
       cardIds: [],
+      restIds: [],
     },
     {
       id: '4-1',
@@ -25,15 +26,21 @@ const day: PlanDay = {
       parts: 1,
       questionIds: [7, 8, 9, 10, 11, 12],
       cardIds: [],
+      restIds: [],
     },
   ],
+  carryIds: [90, 91],
+  optionalIds: [],
   newQuestions: 12,
   steps: [
     { kind: 'learn', lessonId: '3-1', questionCount: 6 },
     { kind: 'learn', lessonId: '4-1', questionCount: 6 },
     { kind: 'review', questionCount: 12 },
-    { kind: 'mix', questionCount: 10 },
-    { kind: 'test', questionCount: 12 },
+    {
+      kind: 'test',
+      questionCount: 10,
+      examParts: { carry: 2, today: 5, older: 3 },
+    },
   ],
   minutes: 10,
 };
@@ -46,8 +53,9 @@ describe('day session', () => {
     expect(seededShuffle(items, 42)).not.toEqual(seededShuffle(items, 43));
   });
 
-  it('fills learn with the lesson, mix/test from the day, review empty', () => {
-    const steps = buildDaySession(day, 7);
+  it('fills learn with the lesson; the day exam mixes carry, today and older', () => {
+    const older = [50, 51, 52, 53, 54, 55, 56, 57];
+    const steps = buildDaySession(day, 7, older);
     expect(steps[0]).toEqual({
       kind: 'learn',
       lessonId: '3-1',
@@ -55,11 +63,14 @@ describe('day session', () => {
       questionCount: 6,
     });
     expect(steps[2].questionIds).toEqual([]);
-    expect(steps[3].questionIds).toHaveLength(10);
-    expect([...steps[4].questionIds].sort((a, b) => a - b)).toEqual([
-      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
-    ]);
-    expect(buildDaySession(day, 7)).toEqual(steps);
+    const exam = steps[3].questionIds;
+    expect(exam).toHaveLength(10);
+    expect(new Set(exam).size).toBe(10);
+    // all of yesterday's extras, 3 older, the rest from today
+    expect(exam).toEqual(expect.arrayContaining([90, 91]));
+    expect(exam.filter((id) => older.includes(id))).toHaveLength(3);
+    expect(exam.filter((id) => id <= 12)).toHaveLength(5);
+    expect(buildDaySession(day, 7, older)).toEqual(steps);
   });
 
   it('day seed is pinned and unique per (category, length, day)', () => {

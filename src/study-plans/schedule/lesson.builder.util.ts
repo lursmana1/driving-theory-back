@@ -2,7 +2,9 @@ import {
   STUDY_PLAN_LESSON_MAX,
   STUDY_PLAN_LESSON_MIN,
   STUDY_PLAN_LESSONS_PER_DAY_TARGET,
+  STUDY_PLAN_DEPTH_FULL,
   SUBJECT_TEACHING_ORDER,
+  type PlanDepth,
 } from '../../common/constants/study-plan.constants.js';
 import type {
   LessonUnit,
@@ -22,9 +24,30 @@ function teachingRank(subjectId: number): number {
 /** A subject ready to cut into lessons: its units in teaching order. */
 type OrderedSubject = { subjectId: number; units: LessonUnit[] };
 
-/** Lesson size cost of a unit: its tickets, and at least 1 (a card alone). */
-export function unitWeight(unit: LessonUnit): number {
-  return Math.max(1, unit.questionIds.length);
+/** Tickets taught in the lesson: a card's first few, a lone ticket itself. */
+function taughtIds(unit: LessonUnit, depth: PlanDepth): readonly number[] {
+  return unit.cardId
+    ? unit.questionIds.slice(0, depth.ticketsPerCard)
+    : unit.questionIds;
+}
+
+/** A card's tickets beyond the taught ones. */
+function restIdsOf(unit: LessonUnit, depth: PlanDepth): readonly number[] {
+  return unit.cardId ? unit.questionIds.slice(depth.ticketsPerCard) : [];
+}
+
+/** Lesson size cost of a unit: its taught tickets, and at least 1 (a card alone). */
+export function unitWeight(
+  unit: LessonUnit,
+  depth: PlanDepth = STUDY_PLAN_DEPTH_FULL,
+): number {
+  return Math.max(1, taughtIds(unit, depth).length);
+}
+
+/** Whether a unit is taught at this depth (short plans skip ticketless cards). */
+function isTaught(unit: LessonUnit, depth: PlanDepth): boolean {
+  if (unit.questionIds.length > 0) return true;
+  return unit.cardId != null && depth.teachingOnlyCards;
 }
 
 /**
@@ -34,6 +57,7 @@ export function unitWeight(unit: LessonUnit): number {
  */
 export function orderSubjects(
   subjects: readonly SubjectQuestions[],
+  depth: PlanDepth = STUDY_PLAN_DEPTH_FULL,
 ): OrderedSubject[] {
   return subjects
     .map((s) => {
@@ -51,8 +75,9 @@ export function orderSubjects(
           }));
       return {
         subjectId: s.subjectId,
-        // A card with no tickets still teaches; an empty ticket unit is dropped.
-        units: units.filter((u) => u.cardId != null || u.questionIds.length),
+        // A card with no tickets teaches only in full plans; an empty ticket
+        // unit is always dropped.
+        units: units.filter((u) => isTaught(u, depth)),
       };
     })
     .filter((s) => s.units.length > 0)
@@ -67,10 +92,15 @@ export function lessonSizeFor(questionsPerLearnDay: number): number {
   return Math.min(STUDY_PLAN_LESSON_MAX, Math.max(STUDY_PLAN_LESSON_MIN, size));
 }
 
-/** Lesson weight of a subject: the sum of its units' weights. */
-export function subjectWeight(subject: SubjectQuestions): number {
+/** Lesson weight of a subject: the sum of its taught units' weights. */
+export function subjectWeight(
+  subject: SubjectQuestions,
+  depth: PlanDepth = STUDY_PLAN_DEPTH_FULL,
+): number {
   return subject.units
-    ? subject.units.reduce((n, u) => n + unitWeight(u), 0)
+    ? subject.units
+        .filter((u) => isTaught(u, depth))
+        .reduce((n, u) => n + unitWeight(u, depth), 0)
     : new Set(subject.questionIds).size;
 }
 
@@ -110,20 +140,23 @@ export function splitByWeight<T>(
 export function buildLessons(
   subjects: readonly SubjectQuestions[],
   lessonSize: number,
+  depth: PlanDepth = STUDY_PLAN_DEPTH_FULL,
 ): PlanLesson[][] {
-  return orderSubjects(subjects).map(({ subjectId, units }) => {
-    const weight = units.reduce((n, u) => n + unitWeight(u), 0);
+  const weightOf = (u: LessonUnit) => unitWeight(u, depth);
+  return orderSubjects(subjects, depth).map(({ subjectId, units }) => {
+    const weight = units.reduce((n, u) => n + weightOf(u), 0);
     const chunks = splitByWeight(
       units,
       Math.ceil(weight / lessonSize),
-      unitWeight,
+      weightOf,
     ).filter((c) => c.length > 0);
     return chunks.map((chunk, i) => ({
       id: `${subjectId}-${i + 1}`,
       subjectId,
       part: i + 1,
       parts: chunks.length,
-      questionIds: chunk.flatMap((u) => u.questionIds),
+      questionIds: chunk.flatMap((u) => taughtIds(u, depth)),
+      restIds: chunk.flatMap((u) => restIdsOf(u, depth)),
       cardIds: chunk.flatMap((u) => (u.cardId ? [u.cardId] : [])),
     }));
   });

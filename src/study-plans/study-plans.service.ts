@@ -6,18 +6,23 @@ import {
 import {
   STUDY_PLAN_RECOMMENDED_MIN_DAYS,
   STUDY_PLAN_SCHEDULE_CACHE_MAX,
+  STUDY_PLAN_TARGET_MINUTES,
 } from '../common/constants/study-plan.constants.js';
 import { resolveGeorgianExamRule } from '../common/utils/georgian-exam-rules.util.js';
 import {
   buildDaySession,
   daySessionSeed,
+  olderQuestionIds,
 } from './schedule/day-session.util.js';
 import {
   isStudyDay,
   resolvePlanLength,
   studyDayOf,
 } from './schedule/plan-length.util.js';
-import { buildSchedule } from './schedule/schedule.builder.util.js';
+import {
+  buildSchedule,
+  daysForTargetMinutes,
+} from './schedule/schedule.builder.util.js';
 import { PlanCardsService } from './plan-cards.service.js';
 import type { PlanSubjects } from './schedule/plan-subjects.util.js';
 import { StudyPlansQueryService } from './study-plans.query.service.js';
@@ -33,9 +38,14 @@ import type {
   SubjectQuestions,
 } from './study-plans.types.js';
 
+function examQuestionCount(categoryId: number): number {
+  return resolveGeorgianExamRule({ categories: [categoryId] }).questionCount;
+}
+
 function toPreviewLesson({
   questionIds,
   cardIds,
+  restIds,
   ...lesson
 }: PlanLesson): PreviewLesson {
   return {
@@ -45,7 +55,7 @@ function toPreviewLesson({
   };
 }
 
-function toPreviewDay(day: PlanDay): PreviewDay {
+function toPreviewDay({ carryIds, optionalIds, ...day }: PlanDay): PreviewDay {
   return { ...day, lessons: day.lessons.map(toPreviewLesson) };
 }
 
@@ -66,6 +76,12 @@ export class StudyPlansService {
   private readonly schedules = new WeakMap<
     readonly SubjectQuestions[],
     Map<string, PlanSchedule>
+  >();
+
+  /** Per question list (same lifetime as `schedules`): `daysForTargetMinutes`. */
+  private readonly targetDays = new WeakMap<
+    readonly SubjectQuestions[],
+    number | null
   >();
 
   constructor(
@@ -130,8 +146,7 @@ export class StudyPlansService {
         subjects,
         dayCount,
         startDay,
-        examQuestionCount: resolveGeorgianExamRule({ categories: [categoryId] })
-          .questionCount,
+        examQuestionCount: examQuestionCount(categoryId),
       });
       if (byInput.size >= STUDY_PLAN_SCHEDULE_CACHE_MAX) {
         const oldest = byInput.keys().next();
@@ -146,13 +161,27 @@ export class StudyPlansService {
     query: PlanQuery,
     now = new Date(),
   ): Promise<StudyPlanPreview> {
-    const { schedule, startDay, examDay } = await this.schedule(query, now);
+    const { schedule, input, startDay, examDay } = await this.schedule(
+      query,
+      now,
+    );
+    let targetDays = this.targetDays.get(input.subjects);
+    if (targetDays === undefined) {
+      targetDays = daysForTargetMinutes(
+        input.subjects,
+        examQuestionCount(query.categoryId),
+        STUDY_PLAN_TARGET_MINUTES,
+      );
+      this.targetDays.set(input.subjects, targetDays);
+    }
     return {
       ...schedule,
       categoryId: query.categoryId,
       startDay,
       examDay,
       intensive: schedule.dayCount < STUDY_PLAN_RECOMMENDED_MIN_DAYS,
+      daysForTargetMinutes: targetDays,
+      targetMinutes: STUDY_PLAN_TARGET_MINUTES,
       days: schedule.days.map(toPreviewDay),
     };
   }
@@ -170,6 +199,9 @@ export class StudyPlansService {
     const steps = buildDaySession(
       day,
       daySessionSeed(query.categoryId, schedule.dayCount, index),
+      day.steps.some((s) => s.examParts?.older)
+        ? olderQuestionIds(schedule.days, index)
+        : [],
     );
     const ids = [...new Set(steps.flatMap((s) => s.questionIds))];
     const [questions, cards] = await Promise.all([

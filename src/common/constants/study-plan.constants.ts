@@ -19,12 +19,19 @@ export const STUDY_PLAN_MAX_DAYS = 60;
 /** Below this many days the plan is labelled intensive. */
 export const STUDY_PLAN_RECOMMENDED_MIN_DAYS = 14;
 
-/** Share of the plan's last days that hold no new lessons (review + mocks). */
-export const STUDY_PLAN_REVIEW_SHARE = 0.15;
-
-/** Minimum review days once a plan is at least `..._FROM_DAYS` long. */
-export const STUDY_PLAN_MIN_REVIEW_DAYS = 2;
-export const STUDY_PLAN_MIN_REVIEW_DAYS_FROM_DAYS = 7;
+/**
+ * Review days at the end (no new lessons), by plan length: the owner wants
+ * the time used for learning, so at most 3. `[fromDays, reviewDays]`,
+ * longest first: 40+ days → 3, 28+ → 2, shorter → 1.
+ */
+export const STUDY_PLAN_REVIEW_DAYS_BY_LENGTH: readonly (readonly [
+  number,
+  number,
+])[] = [
+  [40, 3],
+  [28, 2],
+  [0, 1],
+];
 
 /** Lesson size bounds (questions of one subject; a card counts as one). */
 export const STUDY_PLAN_LESSON_MIN = 6;
@@ -36,21 +43,71 @@ export const STUDY_PLAN_LESSONS_PER_DAY_TARGET = 4;
 /** How many neighbouring subjects are interleaved at once. */
 export const STUDY_PLAN_INTERLEAVE_WINDOW = 3;
 
-/** Every n-th learn day also gets a full mock exam. */
+/** Every n-th learn day also gets the full mock exam. */
 export const STUDY_PLAN_MOCK_EVERY_LEARN_DAYS = 3;
 
+/** Full mock exams on each review day (after the mistakes review). */
+export const STUDY_PLAN_REVIEW_DAY_MOCKS = 2;
+
+/**
+ * Plan depth by length. Full plans cover every ticket: a card's first 2
+ * tickets in the lesson, its other tickets in the next day's exam, and signs
+ * that have no ticket in the category still get a card. Short plans (like
+ * 1-week / 2-week exam-prep schedules) teach the essentials: 1 ticket per
+ * card, the other tickets stay optional (tickets page, trainer), and signs
+ * not on the category's exam are left out.
+ */
+export const STUDY_PLAN_SHORT_MAX_DAYS = 21;
+
+export type PlanDepth = {
+  mode: 'full' | 'short';
+  /** Tickets taught right after their card. */
+  ticketsPerCard: number;
+  /** A card's other tickets come back in the next day's exam (else optional). */
+  extrasInPlan: boolean;
+  /** Cards with no ticket in the category are still taught. */
+  teachingOnlyCards: boolean;
+};
+
+export const STUDY_PLAN_DEPTH_FULL: PlanDepth = {
+  mode: 'full',
+  ticketsPerCard: 2,
+  extrasInPlan: true,
+  teachingOnlyCards: true,
+};
+
+export const STUDY_PLAN_DEPTH_SHORT: PlanDepth = {
+  mode: 'short',
+  ticketsPerCard: 1,
+  extrasInPlan: false,
+  teachingOnlyCards: false,
+};
+
+/** Daily time the picker steers towards ("for ~30 min a day, start N days before"). */
+export const STUDY_PLAN_TARGET_MINUTES = 30;
+
+/**
+ * The mixed day exam that closes a learn day (step `test`): yesterday's extra
+ * tickets (all), today's new ones, and a few older ones, exam-style.
+ * Target size is a share of the category's full exam (B: 30 → 15); it grows
+ * when yesterday left more extras, up to `STUDY_PLAN_TEST_MAX_QUESTIONS`.
+ */
+export const STUDY_PLAN_DAY_EXAM_SHARE = 0.5;
+/** Older tickets (before yesterday) mixed into the day exam. */
+export const STUDY_PLAN_DAY_EXAM_OLDER = 3;
+/** Today's tickets in the day exam, at least (when the day has them). */
+export const STUDY_PLAN_DAY_EXAM_MIN_TODAY = 5;
+
 /** Step sizes (questions). */
-export const STUDY_PLAN_MIX_QUESTIONS = 10;
-export const STUDY_PLAN_MIX_MIN_SUBJECTS = 2;
 export const STUDY_PLAN_REVIEW_MAX_QUESTIONS = 12;
 /** Review days (no new lessons) get a bigger review step. */
 export const STUDY_PLAN_REVIEW_DAY_MAX_QUESTIONS = 30;
 export const STUDY_PLAN_TEST_MIN_QUESTIONS = 5;
-export const STUDY_PLAN_TEST_MAX_QUESTIONS = 30;
+export const STUDY_PLAN_TEST_MAX_QUESTIONS = 40;
 
 /**
  * Upper bound on steps in one day, for validating saved progress. A 7-day
- * plan of a big category has ~14 lessons + review + mix + test + exam.
+ * plan of a big category has ~14 lessons + review + day exam + mock + extra.
  */
 export const STUDY_PLAN_MAX_STEPS_PER_DAY = 40;
 

@@ -75,7 +75,7 @@ describe('parsePlanProgress', () => {
     ],
     [
       'test too big',
-      { done: {}, tests: { '0': { correct: 1, total: 31, passed: false } } },
+      { done: {}, tests: { '0': { correct: 1, total: 41, passed: false } } },
     ],
     [
       'passed not boolean',

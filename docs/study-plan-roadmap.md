@@ -7,7 +7,7 @@ Written 2026-11-01. Product side, teoria.com.ge teardown and the frontend half:
 auto-rebalance inside `GET active`, `load`, `reminderTime`, lazy `completed`, no cron.
 
 What changes: the unit of a plan is a **lesson** (6–14 questions of one subject), not a subject, and
-each day is a **path of steps** (`learn` × n → `review` → `mix` → `test`) whose completion is
+each day is a **path of steps** (`learn` × n → `review` → `test` = mixed day exam → `exam` every 3rd day → optional `extra` in short plans; review days: `mix` = last extras, `review`, 2 × `exam`) whose completion is
 recorded. `CLAUDE.md` rules apply: guard on every route, bounded DTOs, every user query scoped by
 `req.user.userId`, no SQL interpolation, idempotent `scripts/ensure-*.ts`.
 
@@ -70,7 +70,7 @@ Routes:
 |---|---|
 | `POST /study-plans` | Create (old active plan of that category → `abandoned`, same transaction) |
 | `GET /study-plans/active?category` | Plan, `todayIndex`, days with step status `done/open/locked`, `behind`, `rebalanced?`. `null` when none |
-| `GET /study-plans/:id/days/:index?lang` | The day's steps; each step carries its questions in the `GET /trainer/session` shape (one fetch per day for the front). `review` = due mistakes (max 12, only when ≥ 4); `mix` = 10 interleaved from today's lessons; `test` = all today's lesson questions shuffled |
+| `GET /study-plans/:id/days/:index?lang` | The day's steps; each step carries its questions in the `GET /trainer/session` shape (one fetch per day for the front). `review` = due mistakes (max 12, only when ≥ 4); `test` = mixed day exam (yesterday's extra tickets + today's + 3 older, ~½ of the full exam, up to 40); `mix` (review days) = the last learn day's extras; `extra` (short plans, optional) = an even share of the tickets not taught |
 | `POST /study-plans/:id/days/:index/steps/:stepId` | Mark done. `learn-*` / `mix` / `review`: server checks every question of the step has a `question_progress.lastAnsweredAt ≥ plan.createdAt` (no trust in the client). `test`: body = `{ answers: [{questionId, chosenAnswer}] }` (bounded to the step's ids), graded server-side, also written through the practice-answer path so mistakes enter the trainer; stars from the category's mistake ratio |
 
 - Unlock rule: day N+1 is open when day N is done and `doneDay(N) < today`; when `behind`, one extra
