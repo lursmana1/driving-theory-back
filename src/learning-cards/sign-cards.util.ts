@@ -22,13 +22,15 @@ export type SourceSignI18n = Record<
   { name?: string; description?: string } | undefined
 >;
 
+/** One `learning_cards` row (sign, marking or rule card). */
 export type CardRow = {
   id: string;
-  kind: 'sign' | 'marking';
+  kind: 'sign' | 'marking' | 'rule';
   subjectId: number;
   order: number;
   image: string | null;
-  signNumber: string;
+  /** Null for rule cards. */
+  signNumber: string | null;
 };
 
 export type CardTextRow = {
