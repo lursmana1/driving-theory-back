@@ -6,6 +6,7 @@ import { Question } from '../questions/entities/question.entity';
 import { ExamAttemptsController } from './exam-attempts.controller';
 import { ExamAttemptsService } from './exam-attempts.service';
 import { AttemptQueryService } from './attempt-query.service';
+import { AttemptQuestionsQueryService } from './attempt-questions.query.service';
 import { QuestionSelectionService } from './question-selection/question-selection.service';
 import { WeaknessService } from './question-selection/weakness.service';
 import { QuestionSamplingService } from './question-selection/question-sampling.service';
@@ -22,6 +23,7 @@ import { PracticeAnswersModule } from '../practice-answers/practice-answers.modu
   providers: [
     ExamAttemptsService,
     AttemptQueryService,
+    AttemptQuestionsQueryService,
     QuestionSelectionService,
     WeaknessService,
     QuestionSamplingService,

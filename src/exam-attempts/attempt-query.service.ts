@@ -4,6 +4,7 @@ import { Repository, SelectQueryBuilder } from 'typeorm';
 import { ExamAttempt } from './entities/exam-attempt.entity';
 import { UserAnswer } from './entities/user-answer.entity';
 import { Question } from '../questions/entities/question.entity';
+import { AttemptQuestionsQueryService } from './attempt-questions.query.service.js';
 import {
   MAX_STATS_LIMIT,
   MAX_HISTORY_PAGE_SIZE,
@@ -33,8 +34,7 @@ export class AttemptQueryService {
     private readonly attemptRepo: Repository<ExamAttempt>,
     @InjectRepository(UserAnswer)
     private readonly answerRepo: Repository<UserAnswer>,
-    @InjectRepository(Question)
-    private readonly questionRepo: Repository<Question>,
+    private readonly attemptQuestions: AttemptQuestionsQueryService,
   ) {}
 
   async getHistory(
@@ -72,7 +72,8 @@ export class AttemptQueryService {
 
   async getAttempt(userId: number, attemptId: number): Promise<AttemptDetail> {
     const attempt = await this.findAttemptForUser(attemptId, userId);
-    const questions = await this.findQuestionsByIds(
+    // Includes questions archived since the attempt (flagged `archived`).
+    const questions = await this.attemptQuestions.findForAttempt(
       attempt.questionIds,
       attempt.lang,
     );
@@ -145,18 +146,9 @@ export class AttemptQueryService {
     return attempt;
   }
 
-  /** Preserve ticket order from `questionIds` (IN-query order is undefined). */
-  async findQuestionsByIds(ids: number[], lang: string): Promise<Question[]> {
-    if (!ids.length) return [];
-    const rows = await this.questionRepo
-      .createQueryBuilder('q')
-      .where('q.lang = :lang', { lang })
-      .andWhere('q.id IN (:...ids)', { ids })
-      .getMany();
-    const byId = new Map(rows.map((q) => [q.id, q]));
-    return ids
-      .map((id) => byId.get(id))
-      .filter((q): q is Question => q != null);
+  /** Live questions of a new ticket, in ticket order. */
+  findQuestionsByIds(ids: number[], lang: string): Promise<Question[]> {
+    return this.attemptQuestions.findLive(ids, lang);
   }
 
   private attemptsWithAnswersQb(

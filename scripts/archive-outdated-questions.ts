@@ -15,6 +15,7 @@ import 'dotenv/config';
 import * as fs from 'fs';
 import * as path from 'path';
 import { initPg } from './lib/pg-data-source';
+import { CREATE_QUESTIONS_ARCHIVED_SQL } from './lib/questions-archived.sql';
 
 function loadIds(filePath: string): number[] {
   const raw = JSON.parse(fs.readFileSync(filePath, 'utf8')) as unknown;
@@ -55,28 +56,7 @@ async function main() {
   const ds = await initPg();
 
   try {
-    await ds.query(`
-      CREATE TABLE IF NOT EXISTS questions_archived (
-        id int NOT NULL,
-        lang varchar(5) NOT NULL,
-        question text NOT NULL,
-        question_explained text,
-        "hasImg" smallint NOT NULL DEFAULT 0,
-        correct_answer varchar(10),
-        answer_1 text,
-        answer_2 text,
-        answer_3 text,
-        answer_4 text,
-        subject int,
-        categories int[] NOT NULL DEFAULT '{}',
-        audio varchar(512),
-        ai_tutor text,
-        img varchar(512),
-        archived_at timestamptz NOT NULL DEFAULT NOW(),
-        archive_reason text,
-        PRIMARY KEY (id, lang)
-      )
-    `);
+    await ds.query(CREATE_QUESTIONS_ARCHIVED_SQL);
 
     const before = await ds.query(
       `SELECT COUNT(*)::int AS cnt FROM questions WHERE id = ANY($1::int[])`,
@@ -172,8 +152,13 @@ async function main() {
       );
 
       await qr.commitTransaction();
+      // TypeORM returns [rows, affectedCount] for UPDATE/DELETE ... RETURNING on postgres.
+      const deletedResult = deleted as unknown[];
+      const deletedRows = (
+        Array.isArray(deletedResult[0]) ? deletedResult[0] : deletedResult
+      ) as unknown[];
       console.log(
-        `Archived ${inserted.length} rows; removed ${deleted.length} from live questions.`,
+        `Archived ${inserted.length} rows; removed ${deletedRows.length} from live questions.`,
       );
     } catch (e) {
       await qr.rollbackTransaction();

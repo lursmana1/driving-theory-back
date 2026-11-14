@@ -65,7 +65,19 @@ graded AS (
     (COALESCE(q.correct_answer = i.chosen, false)) AS is_correct
   FROM attempt a
   CROSS JOIN input i
-  LEFT JOIN questions q ON q.id = i.question_id AND q.lang = a.lang
+  -- Live first; a ticket question archived after the exam started is graded
+  -- from questions_archived so a running exam can still be finished. An id
+  -- is never in both tables (archiving moves the row).
+  LEFT JOIN LATERAL (
+    SELECT lq.id, lq.subject, lq.correct_answer
+    FROM questions lq
+    WHERE lq.id = i.question_id AND lq.lang = a.lang
+    UNION ALL
+    SELECT aq.id, aq.subject, aq.correct_answer
+    FROM questions_archived aq
+    WHERE aq.id = i.question_id AND aq.lang = a.lang
+    LIMIT 1
+  ) q ON TRUE
 ),
 settled AS (
   UPDATE exam_attempts e

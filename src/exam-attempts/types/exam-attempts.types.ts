@@ -1,5 +1,6 @@
 import type { Question } from '../../questions/entities/question.entity';
 import type { UserAnswer } from '../entities/user-answer.entity';
+import type { AttemptQuestion } from '../attempt-questions.util.js';
 
 export interface StartAttemptOptions {
   lang: string;
@@ -65,7 +66,8 @@ export interface RawAnswerRow {
 export interface AttemptDetail {
   id: number;
   questionIds: number[];
-  questions: Question[];
+  /** Ticket order; `archived: true` = removed from the bank since. */
+  questions: AttemptQuestion[];
   answers: UserAnswer[];
   createdAt: Date;
   endDate: Date | null;
