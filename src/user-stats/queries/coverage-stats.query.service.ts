@@ -16,6 +16,7 @@ import {
 import { SqlParams } from '../../common/sql/sql-params.js';
 import { parsePgInt } from '../../common/utils/pg-row.util.js';
 import { round3 } from '../../common/utils/round3.util.js';
+import { withLiveSubjectCounts } from '../../common/utils/category-live-counts.util.js';
 import type {
   QuestionPoolExposure,
   SubjectAggregateRow,
@@ -239,21 +240,6 @@ export class CoverageStatsQueryService {
     const liveCounts = new Map(
       liveRows.map((r) => [parsePgInt(r.subject), parsePgInt(r.count)]),
     );
-
-    if (category?.subjects?.length) {
-      return [...category.subjects]
-        .map((s) => ({
-          ...s,
-          questionsCount: liveCounts.get(s.id) ?? 0,
-        }))
-        .filter((s) => s.questionsCount > 0)
-        .sort((a, b) => a.id - b.id);
-    }
-
-    return liveRows.map((r) => ({
-      id: parsePgInt(r.subject),
-      name: `Subject ${r.subject}`,
-      questionsCount: parsePgInt(r.count),
-    }));
+    return withLiveSubjectCounts(category?.subjects, liveCounts);
   }
 }

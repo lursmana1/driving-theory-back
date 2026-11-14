@@ -27,6 +27,20 @@ describe('SUBMIT_ANSWER_SQL', () => {
     expect(progressed).toContain('FROM inserted ins');
   });
 
+  it('grades a ticket question archived mid-exam from questions_archived', () => {
+    const lookup = SUBMIT_ANSWER_SQL.slice(
+      SUBMIT_ANSWER_SQL.indexOf('LEFT JOIN LATERAL'),
+      SUBMIT_ANSWER_SQL.indexOf(') q ON TRUE'),
+    );
+    expect(lookup.indexOf('FROM questions lq')).toBeGreaterThan(-1);
+    expect(lookup.indexOf('FROM questions lq')).toBeLessThan(
+      lookup.indexOf('FROM questions_archived aq'),
+    );
+    expect(lookup).toContain('UNION ALL');
+    expect(lookup).toContain('LIMIT 1');
+    expect(lookup).toContain('aq.lang = a.lang');
+  });
+
   it('turns a lost insert race into already_answered, not ok', () => {
     expect(SUBMIT_ANSWER_SQL).toContain('ON CONFLICT DO NOTHING');
     const statusCase = SUBMIT_ANSWER_SQL.slice(

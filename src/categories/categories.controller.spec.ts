@@ -3,6 +3,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { CategoriesController } from './categories.controller';
 import { CategoriesService } from './categories.service';
 import { Category } from './entities/category.entity';
+import { Question } from '../questions/entities/question.entity';
 
 describe('CategoriesController', () => {
   let controller: CategoriesController;
@@ -13,6 +14,7 @@ describe('CategoriesController', () => {
       providers: [
         CategoriesService,
         { provide: getRepositoryToken(Category), useValue: {} },
+        { provide: getRepositoryToken(Question), useValue: {} },
       ],
     }).compile();
 
