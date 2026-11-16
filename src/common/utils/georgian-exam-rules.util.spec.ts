@@ -3,8 +3,23 @@ import {
   GEORGIAN_EXAM_RULES_BY_CATEGORY,
   assertSufficientQuestionPool,
   isExamPassed,
+  pickPrimaryCategoryId,
   resolveGeorgianExamRule,
 } from './georgian-exam-rules.util';
+
+describe('pickPrimaryCategoryId', () => {
+  it('returns the first valid id', () => {
+    expect(pickPrimaryCategoryId([9])).toBe(9);
+    expect(pickPrimaryCategoryId([7, 9])).toBe(7);
+    expect(pickPrimaryCategoryId([NaN, 5])).toBe(5);
+  });
+
+  it('returns null for legacy attempts without a category', () => {
+    expect(pickPrimaryCategoryId([])).toBeNull();
+    expect(pickPrimaryCategoryId(undefined)).toBeNull();
+    expect(pickPrimaryCategoryId(null)).toBeNull();
+  });
+});
 
 describe('resolveGeorgianExamRule', () => {
   it('returns AM rules for category 0', () => {

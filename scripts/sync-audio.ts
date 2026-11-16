@@ -8,6 +8,7 @@ import {
   S3Client,
 } from '@aws-sdk/client-s3';
 import { initPg } from './lib/pg-data-source';
+import { parseIdsArg, stripTutorGreeting } from './lib/tutor-audio-args';
 
 type Lang = 'ka' | 'en' | 'ru';
 const ENABLED_AUDIO_LANGS: Lang[] = ['en', 'ru'];
@@ -79,9 +80,7 @@ async function synthesizeWithRetry(
     for (const candidate of voiceAttempts) {
       try {
         if (attempt === 1) {
-          console.log(
-            `🎙️ Requesting: ${candidate || '(auto)'} for [${lang}]`,
-          );
+          console.log(`🎙️ Requesting: ${candidate || '(auto)'} for [${lang}]`);
         } else {
           console.log(
             `🎙️ Retry ${attempt}/${maxAttempts}: ${candidate || '(auto)'} for [${lang}]`,
@@ -99,7 +98,10 @@ async function synthesizeWithRetry(
       } catch (err) {
         lastErr = err;
         const msg = (err as Error)?.message?.toLowerCase() ?? '';
-        if (msg.includes('does not exist') || msg.includes('invalid_argument')) {
+        if (
+          msg.includes('does not exist') ||
+          msg.includes('invalid_argument')
+        ) {
           continue; // try next voice candidate
         }
         if (isRetryableTtsError(err) && attempt < maxAttempts) {
@@ -169,6 +171,10 @@ async function main() {
   let generated = 0;
   let reused = 0;
 
+  /** --force: regenerate even when an S3 object exists (old files may still contain a greeting) */
+  const force = process.argv.includes('--force');
+  const ids = parseIdsArg();
+
   const rows = (await ds.query(
     `SELECT id, lang, ai_tutor, audio
      FROM questions
@@ -176,27 +182,29 @@ async function main() {
        AND ai_tutor IS NOT NULL
        AND TRIM(ai_tutor) <> ''
        AND (audio IS NULL OR TRIM(audio) = '')
+       AND ($3::int[] IS NULL OR id = ANY($3::int[]))
      ORDER BY id ASC, lang ASC
      LIMIT $2`,
-    [ENABLED_AUDIO_LANGS, BATCH_LIMIT],
+    [ENABLED_AUDIO_LANGS, BATCH_LIMIT, ids],
   )) as QuestionRow[];
 
   console.log(
-    `Starting audio sync. charLimit=${CHAR_LIMIT}, delayMs=${DELAY_MS}, batchLimit=${BATCH_LIMIT}, candidates=${rows.length}`,
+    `Starting audio sync. charLimit=${CHAR_LIMIT}, delayMs=${DELAY_MS}, batchLimit=${BATCH_LIMIT}, candidates=${rows.length}` +
+      `${ids ? `, ids=${ids.length}` : ''}${force ? ', --force (no S3 reuse)' : ''}`,
   );
 
   for (const doc of rows) {
-    const text = (doc.ai_tutor || '').trim();
+    const text = stripTutorGreeting((doc.ai_tutor || '').trim(), doc.lang);
     if (!text) continue;
 
     const key = `audio/${doc.lang}/tutor_${doc.id}.mp3`;
     const url = getPublicUrl(bucket, region, key);
 
     try {
-      const head = await s3.send(
-        new HeadObjectCommand({ Bucket: bucket, Key: key }),
-      );
-      if ((head.ContentLength ?? 0) >= MIN_S3_BYTES) {
+      const head = force
+        ? null
+        : await s3.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
+      if (head && (head.ContentLength ?? 0) >= MIN_S3_BYTES) {
         await ds.query(
           `UPDATE questions SET audio = $1 WHERE id = $2 AND lang = $3`,
           [url, doc.id, doc.lang],
@@ -208,9 +216,11 @@ async function main() {
         );
         continue;
       }
-      console.warn(
-        `[${doc.id}/${doc.lang}] S3 object too small (${head.ContentLength ?? 0} < ${MIN_S3_BYTES} bytes), regenerating`,
-      );
+      if (head) {
+        console.warn(
+          `[${doc.id}/${doc.lang}] S3 object too small (${head.ContentLength ?? 0} < ${MIN_S3_BYTES} bytes), regenerating`,
+        );
+      }
     } catch (err) {
       if (!isNotFoundError(err)) {
         throw err;
@@ -292,4 +302,3 @@ main().catch((err) => {
   console.error('Audio sync failed:', err);
   process.exit(1);
 });
-

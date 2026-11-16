@@ -1,5 +1,6 @@
 import type { Question } from '../../questions/entities/question.entity';
 import type { UserAnswer } from '../entities/user-answer.entity';
+import type { AttemptQuestion } from '../attempt-questions.util.js';
 
 export interface StartAttemptOptions {
   lang: string;
@@ -32,6 +33,10 @@ export interface AttemptSummary {
   completedAt: Date | null;
   passed: boolean | null;
   durationSeconds: number | null;
+  /** Category filter the attempt was started with (`[]` for legacy rows). */
+  categories: number[];
+  /** First valid id of `categories`; `null` when there is none. */
+  categoryId: number | null;
 }
 
 /** Full-history aggregates (not limited to the current page). */
@@ -65,7 +70,8 @@ export interface RawAnswerRow {
 export interface AttemptDetail {
   id: number;
   questionIds: number[];
-  questions: Question[];
+  /** Ticket order; `archived: true` = removed from the bank since. */
+  questions: AttemptQuestion[];
   answers: UserAnswer[];
   createdAt: Date;
   endDate: Date | null;

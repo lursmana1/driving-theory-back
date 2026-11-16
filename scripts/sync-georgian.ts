@@ -6,6 +6,7 @@ import {
 } from '@aws-sdk/client-s3';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { initPg } from './lib/pg-data-source';
+import { parseIdsArg } from './lib/tutor-audio-args';
 
 // ---------------------------------------------------------------------------
 // Config (override: GEMINI_TTS_MODEL)
@@ -115,7 +116,12 @@ function inlineDataToBuffer(data: unknown): Buffer {
 
 function isMpegMime(mime: string): boolean {
   const m = mime.toLowerCase();
-  return m.includes('mpeg') || m.includes('mp3') || m === 'audio/mp4' || m.includes('mp4a');
+  return (
+    m.includes('mpeg') ||
+    m.includes('mp3') ||
+    m === 'audio/mp4' ||
+    m.includes('mp4a')
+  );
 }
 
 function looksLikeMp3(buf: Buffer): boolean {
@@ -167,7 +173,10 @@ function extractAudioFromTtsResponse(result: unknown): ExtractedTtsAudio {
   type Part = { inlineData?: { data?: string; mimeType?: string } };
   const res = result as {
     response?: {
-      candidates?: Array<{ content?: { parts?: Part[] }; finishReason?: string }>;
+      candidates?: Array<{
+        content?: { parts?: Part[] };
+        finishReason?: string;
+      }>;
       promptFeedback?: { blockReason?: string };
     };
   };
@@ -203,11 +212,17 @@ function extractAudioFromTtsResponse(result: unknown): ExtractedTtsAudio {
       }
 
       const ml = mimeType.toLowerCase();
-      if (isMpegMime(mimeType) || looksLikeMp3(buf)) {
+      if (isMpegMime(mimeType)) {
         return { buffer: buf, contentType: 'audio/mpeg', fileExtension: 'mp3' };
       }
       if (looksLikeWav(buf) || ml.includes('wav')) {
         return { buffer: buf, contentType: 'audio/wav', fileExtension: 'wav' };
+      }
+      // The declared PCM mime must win over byte sniffing: raw PCM that starts with
+      // near-silence (FF FF ...) looks like an MP3 frame header, and was uploaded as a
+      // headerless .mp3 that browsers cannot play.
+      if (!isPcmL16Mime(mimeType) && looksLikeMp3(buf)) {
+        return { buffer: buf, contentType: 'audio/mpeg', fileExtension: 'mp3' };
       }
       if (isPcmL16Mime(mimeType)) {
         const hz = pcmRateFromMime(mimeType) ?? 24_000;
@@ -259,7 +274,11 @@ function parseSyncLimit(): number {
       if (Number.isFinite(n) && n > 0) return n;
     }
   }
-  const raw = (process.env.GEORGIAN_SYNC_LIMIT ?? process.env.SYNC_LIMIT ?? '').trim();
+  const raw = (
+    process.env.GEORGIAN_SYNC_LIMIT ??
+    process.env.SYNC_LIMIT ??
+    ''
+  ).trim();
   if (raw) {
     const n = Number.parseInt(raw, 10);
     if (Number.isFinite(n) && n > 0) return n;
@@ -354,8 +373,7 @@ async function main() {
     );
   }
 
-  const primaryModel =
-    process.env.GEMINI_TTS_MODEL?.trim() || MODEL_NAME;
+  const primaryModel = process.env.GEMINI_TTS_MODEL?.trim() || MODEL_NAME;
   const fallbackModel =
     process.env.GEMINI_TTS_FALLBACK_MODEL?.trim() || FALLBACK_MODEL_NAME;
   const fallbackEnabled =
@@ -376,12 +394,21 @@ async function main() {
   const fromId = parseSyncFromId();
   const force = process.argv.includes('--force');
 
-  const params: number[] = [];
+  const ids = parseIdsArg();
+  const params: (number | number[])[] = [];
   const where: string[] = [
     `lang = 'ka'`,
     `ai_tutor IS NOT NULL`,
     `TRIM(ai_tutor) <> ''`,
   ];
+  if (ids) {
+    params.push(ids);
+    where.push(`id = ANY($${params.length}::int[])`);
+  }
+  // --missing-audio: only rows with no audio yet (resume a run that hit the daily quota)
+  if (process.argv.includes('--missing-audio')) {
+    where.push(`NULLIF(TRIM(audio), '') IS NULL`);
+  }
   if (fromId > 0) {
     params.push(fromId);
     where.push(`id >= $${params.length}`);
@@ -414,8 +441,11 @@ async function main() {
   console.log(
     `Delays: ok→next=${REQUEST_DELAY_MS / 1000}s | 429 base=${RATE_LIMIT_BASE_MS / 1000}s max=${RATE_LIMIT_MAX_MS / 1000}s | streak stop=${MAX_429_STREAK || 'off'}`,
   );
-  if (fromId > 0) console.log(`From id >= ${fromId} (--from / GEORGIAN_SYNC_FROM)`);
-  if (limit > 0) console.log(`Limit ${limit} doc(s) (--limit / GEORGIAN_SYNC_LIMIT)`);
+  if (fromId > 0)
+    console.log(`From id >= ${fromId} (--from / GEORGIAN_SYNC_FROM)`);
+  if (limit > 0)
+    console.log(`Limit ${limit} doc(s) (--limit / GEORGIAN_SYNC_LIMIT)`);
+  if (ids) console.log(`Only ${ids.length} id(s) (--ids / --ids-file)`);
   if (force) console.log('Mode: --force (regenerate even when S3 file exists)');
   console.log(`Queue size: ${rows.length}`);
 
@@ -497,7 +527,9 @@ async function main() {
 
         const cand = result.response?.candidates?.[0];
         if (DEBUG && cand) {
-          console.log(`  candidates=${result.response?.candidates?.length} finish=${cand.finishReason}`);
+          console.log(
+            `  candidates=${result.response?.candidates?.length} finish=${cand.finishReason}`,
+          );
         }
 
         if (cand?.finishReason === 'SAFETY' || cand?.finishReason === 'OTHER') {

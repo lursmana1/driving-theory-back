@@ -49,6 +49,8 @@
     "db:seed-cards": "ts-node -r tsconfig-paths/register scripts/seed-cards.ts",
     "db:link-sign-cards": "ts-node -r tsconfig-paths/register scripts/link-sign-cards.ts",
     "db:clear-exam-attempts": "ts-node -r tsconfig-paths/register scripts/clear-exam-attempts.ts --yes",
+    "db:ensure-questions-archived": "ts-node -r tsconfig-paths/register scripts/ensure-questions-archived.ts",
+    "db:check-question-bank": "ts-node -r tsconfig-paths/register scripts/check-question-bank.ts",
     "db:archive-outdated": "ts-node -r tsconfig-paths/register scripts/archive-outdated-questions.ts",
     "db:migrate-timestamptz": "ts-node -r tsconfig-paths/register scripts/migrate-timestamps-to-timestamptz.ts"
   },
