@@ -31,9 +31,19 @@ function taughtIds(unit: LessonUnit, depth: PlanDepth): readonly number[] {
     : unit.questionIds;
 }
 
-/** A card's tickets beyond the taught ones. */
+/** A card's tickets beyond the taught ones that the next day's exam asks. */
+function carryIdsOf(unit: LessonUnit, depth: PlanDepth): readonly number[] {
+  if (!unit.cardId) return [];
+  return unit.questionIds.slice(
+    depth.ticketsPerCard,
+    depth.ticketsPerCard + depth.carryPerCard,
+  );
+}
+
+/** A card's tickets beyond the taught and carried ones (optional rounds). */
 function restIdsOf(unit: LessonUnit, depth: PlanDepth): readonly number[] {
-  return unit.cardId ? unit.questionIds.slice(depth.ticketsPerCard) : [];
+  if (!unit.cardId) return [];
+  return unit.questionIds.slice(depth.ticketsPerCard + depth.carryPerCard);
 }
 
 /** Lesson size cost of a unit: its taught tickets, and at least 1 (a card alone). */
@@ -156,6 +166,7 @@ export function buildLessons(
       part: i + 1,
       parts: chunks.length,
       questionIds: chunk.flatMap((u) => taughtIds(u, depth)),
+      carryIds: chunk.flatMap((u) => carryIdsOf(u, depth)),
       restIds: chunk.flatMap((u) => restIdsOf(u, depth)),
       cardIds: chunk.flatMap((u) => (u.cardId ? [u.cardId] : [])),
     }));

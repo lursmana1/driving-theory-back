@@ -5,8 +5,9 @@
  * `body` are written: `tutor` and `audio` (written later by their own
  * scripts) are never touched. Safe to re-run (prints what changed).
  *
- * Rule links are reviewed by hand, so they win: every link of a ticket named
- * in a rule file is replaced, and rule links no longer in the files are removed.
+ * Rule links and the hand-made sign links (`signs/manual-links.json`) are
+ * reviewed by hand, so they win: every link of a ticket they name is
+ * replaced, and manual links no longer in the files are removed.
  *
  *   npx ts-node -r tsconfig-paths/register scripts/seed-cards.ts [--dry-run]
  *     [--signs-dir=../prava/src/data/signs] [--rules-dir=../prava/src/data/rules]
@@ -24,6 +25,10 @@ import {
   buildRuleCards,
   type SourceRuleFile,
 } from '../src/learning-cards/rule-cards.util';
+import {
+  buildManualSignLinks,
+  type SourceManualSignLinks,
+} from '../src/learning-cards/manual-sign-links.util';
 
 const DRY_RUN = process.argv.includes('--dry-run');
 const dirArg = process.argv.find((a) => a.startsWith('--signs-dir='));
@@ -49,9 +54,15 @@ function readRuleFiles(): SourceRuleFile[] {
     .map((f) => readJson<SourceRuleFile>(RULES_DIR, f));
 }
 
-/** Links replaced by the rule files: every rule link, and any link of a ticket they name. */
+/**
+ * Links replaced by the hand-reviewed files: every rule link, every manual
+ * link, and any link of a ticket the files name.
+ */
 const RULE_LINKS_WHERE = `"cardId" IN (SELECT id FROM learning_cards WHERE kind = 'rule')
+  OR source = 'manual'
   OR "questionId" = ANY($1::int[])`;
+
+const MANUAL_LINKS_FILE = 'manual-links.json';
 
 type CardDbRow = {
   id: string;
@@ -87,6 +98,25 @@ async function main() {
   );
   const cards: CardDbRow[] = [...sign.cards, ...rule.cards];
   const texts: TextDbRow[] = [...sign.texts, ...rule.texts];
+
+  // Hand-made sign links: tickets the regex cannot resolve (range cards).
+  const manual = fs.existsSync(path.join(SIGNS_DIR, MANUAL_LINKS_FILE))
+    ? buildManualSignLinks(
+        readJson<SourceManualSignLinks>(SIGNS_DIR, MANUAL_LINKS_FILE),
+        new Set(sign.cards.map((c) => c.id)),
+      )
+    : [];
+  const ruleTicketIds = new Set(rule.links.map((l) => l.questionId));
+  const overlap = manual.filter((l) => ruleTicketIds.has(l.questionId));
+  if (overlap.length > 0) {
+    throw new Error(
+      `manual-links: tickets also under a rule card: ${[...new Set(overlap.map((l) => l.questionId))].join(', ')}`,
+    );
+  }
+  console.log(
+    `source ${SIGNS_DIR}/${MANUAL_LINKS_FILE}: ${new Set(manual.map((l) => l.questionId)).size} tickets → ${manual.length} hand-made sign links`,
+  );
+  const handLinks = [...rule.links, ...manual];
 
   const ds = await initPg();
   try {
@@ -140,14 +170,14 @@ async function main() {
           ? `; rule cards removed: ${staleRules.join(', ')}`
           : ''),
     );
-    const ruleQuestionIds = rule.links.map((l) => l.questionId);
+    const ruleQuestionIds = handLinks.map((l) => l.questionId);
     const [{ n: replacedLinks }] = await ds.query<{ n: string }[]>(
       `SELECT count(*) AS n FROM question_cards
        WHERE ${RULE_LINKS_WHERE}`,
       [ruleQuestionIds],
     );
     console.log(
-      `rule links: ${rule.links.length} to write, ${replacedLinks} existing replaced`,
+      `hand-reviewed links: ${handLinks.length} to write (${rule.links.length} rule + ${manual.length} sign), ${replacedLinks} existing replaced`,
     );
     if (DRY_RUN) {
       console.log('dry run: nothing written');
@@ -206,16 +236,16 @@ async function main() {
           [staleRules],
         );
       }
-      if (rule.links.length > 0) {
+      if (handLinks.length > 0) {
         await tx.query(
           `INSERT INTO question_cards ("questionId", "cardId", "primary", source, confirmed)
            SELECT * FROM unnest($1::int[], $2::varchar[], $3::boolean[], $4::varchar[], $5::boolean[])`,
           [
             ruleQuestionIds,
-            rule.links.map((l) => l.cardId),
-            rule.links.map((l) => l.primary),
-            rule.links.map((l) => l.source),
-            rule.links.map((l) => l.confirmed),
+            handLinks.map((l) => l.cardId),
+            handLinks.map((l) => l.primary),
+            handLinks.map((l) => l.source),
+            handLinks.map((l) => l.confirmed),
           ],
         );
       }

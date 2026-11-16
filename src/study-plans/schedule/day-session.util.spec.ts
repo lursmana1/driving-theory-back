@@ -17,6 +17,7 @@ const day: PlanDay = {
       parts: 2,
       questionIds: [1, 2, 3, 4, 5, 6],
       cardIds: [],
+      carryIds: [],
       restIds: [],
     },
     {
@@ -26,6 +27,7 @@ const day: PlanDay = {
       parts: 1,
       questionIds: [7, 8, 9, 10, 11, 12],
       cardIds: [],
+      carryIds: [],
       restIds: [],
     },
   ],

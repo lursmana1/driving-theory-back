@@ -45,6 +45,7 @@ function examQuestionCount(categoryId: number): number {
 function toPreviewLesson({
   questionIds,
   cardIds,
+  carryIds,
   restIds,
   ...lesson
 }: PlanLesson): PreviewLesson {

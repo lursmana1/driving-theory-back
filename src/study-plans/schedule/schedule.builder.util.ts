@@ -6,11 +6,13 @@ import {
   STUDY_PLAN_MAX_DAYS,
   STUDY_PLAN_MIN_DAYS,
   STUDY_PLAN_MOCK_EVERY_LEARN_DAYS,
+  STUDY_PLAN_RECOMMENDED_MIN_DAYS,
   STUDY_PLAN_REVIEW_DAY_MAX_QUESTIONS,
   STUDY_PLAN_REVIEW_DAY_MOCKS,
   STUDY_PLAN_REVIEW_MAX_QUESTIONS,
   STUDY_PLAN_REVIEW_DAYS_BY_LENGTH,
   STUDY_PLAN_DEPTH_FULL,
+  STUDY_PLAN_DEPTH_INTENSIVE,
   STUDY_PLAN_DEPTH_SHORT,
   STUDY_PLAN_SHORT_MAX_DAYS,
   STUDY_PLAN_SECONDS_CARD,
@@ -39,8 +41,15 @@ import {
 import { metIds } from './day-session.util.js';
 import { addStudyDays } from './plan-length.util.js';
 
-/** Full plans cover every ticket; short ones teach the essentials. */
+/**
+ * Full plans cover every ticket; short ones teach the essentials; intensive
+ * ones (under the recommended length) add a second ticket per card to the
+ * day exam.
+ */
 export function planDepthFor(dayCount: number): PlanDepth {
+  if (dayCount < STUDY_PLAN_RECOMMENDED_MIN_DAYS) {
+    return STUDY_PLAN_DEPTH_INTENSIVE;
+  }
   return dayCount <= STUDY_PLAN_SHORT_MAX_DAYS
     ? STUDY_PLAN_DEPTH_SHORT
     : STUDY_PLAN_DEPTH_FULL;
@@ -49,9 +58,9 @@ export function planDepthFor(dayCount: number): PlanDepth {
 /** Days at the end with no new lessons (review + full mocks). */
 export function reviewDayCount(dayCount: number): number {
   // The last entry starts at 0, so every length matches one.
-  const [, review] = STUDY_PLAN_REVIEW_DAYS_BY_LENGTH.find(
-    ([from]) => dayCount >= from,
-  )!;
+  const review =
+    STUDY_PLAN_REVIEW_DAYS_BY_LENGTH.find(([from]) => dayCount >= from)?.[1] ??
+    1;
   return Math.min(dayCount - 1, review);
 }
 
@@ -95,14 +104,14 @@ function stepSeconds(step: PlanStep): number {
 }
 
 /**
- * Required time a lesson costs: cards, taught tickets, and (full plans) its
- * other tickets in the next day's exam. Short plans' optional ones don't count.
+ * Required time a lesson costs: cards, taught tickets, and its carried
+ * tickets in the next day's exam. Optional ones don't count.
  */
-function lessonSeconds(lesson: PlanLesson, restInPlan: boolean): number {
+function lessonSeconds(lesson: PlanLesson): number {
   return (
     lesson.questionIds.length * STUDY_PLAN_SECONDS_LEARN +
     lesson.cardIds.length * STUDY_PLAN_SECONDS_CARD +
-    (restInPlan ? lesson.restIds.length * STUDY_PLAN_SECONDS_EXAM : 0)
+    lesson.carryIds.length * STUDY_PLAN_SECONDS_EXAM
   );
 }
 
@@ -116,9 +125,8 @@ function lessonSeconds(lesson: PlanLesson, restInPlan: boolean): number {
 export function splitLessonsByTime(
   lessons: PlanLesson[],
   days: number,
-  restInPlan = true,
 ): PlanLesson[][] {
-  const out = splitByWeight(lessons, days, (l) => lessonSeconds(l, restInPlan));
+  const out = splitByWeight(lessons, days, lessonSeconds);
   if (out.every((d) => d.length > 0)) return out;
   return out.map((_, i) =>
     lessons.slice(
@@ -139,7 +147,12 @@ export function dayExamParts(
   examQuestionCount: number,
 ): DayExamParts {
   const target = Math.round(examQuestionCount * STUDY_PLAN_DAY_EXAM_SHARE);
-  const carry = Math.min(carryCount, STUDY_PLAN_TEST_MAX_QUESTIONS);
+  // Carried tickets come first but never crowd out today's handful and a few
+  // older ones; what doesn't fit rolls over to the next day (buildSchedule).
+  const reserved =
+    Math.min(newQuestions, STUDY_PLAN_DAY_EXAM_MIN_TODAY) +
+    Math.min(olderAvailable, STUDY_PLAN_DAY_EXAM_OLDER);
+  const carry = Math.min(carryCount, STUDY_PLAN_TEST_MAX_QUESTIONS - reserved);
   const older = Math.min(
     olderAvailable,
     STUDY_PLAN_DAY_EXAM_OLDER,
@@ -240,6 +253,10 @@ export function spreadOptional(
  * of the day's remaining tickets. The last 1–3 days hold no new
  * lessons: the last extras, the mistakes review and two full mocks. When
  * there are fewer lessons than learn days, the extra days become review days.
+ *
+ * Extra tickets a day exam cannot hold (over `STUDY_PLAN_TEST_MAX_QUESTIONS`,
+ * or a day too small for a test) roll over to the next day, so every ticket
+ * is asked once; the last review day's `mix` takes whatever is left.
  */
 export function buildSchedule(input: ScheduleInput): PlanSchedule {
   const { subjects, dayCount, startDay, examQuestionCount } = input;
@@ -255,17 +272,13 @@ export function buildSchedule(input: ScheduleInput): PlanSchedule {
   const lessons = interleaveLessons(buildLessons(subjects, lessonSize, depth));
   const learnDays = Math.min(plannedLearnDays, lessons.length);
 
-  const lessonsByDay = splitLessonsByTime(
-    lessons,
-    learnDays,
-    depth.extrasInPlan,
-  );
-  // Short plans: a card's other tickets go to the optional rounds.
-  const optionalByDay = depth.extrasInPlan
-    ? Array.from({ length: dayCount }, (): number[] => [])
-    : spreadOptional(lessonsByDay, dayCount - learnDays);
+  const lessonsByDay = splitLessonsByTime(lessons, learnDays);
+  // Short / intensive plans: a card's other tickets go to the optional rounds
+  // (full plans have none: every extra ticket is carried).
+  const optionalByDay = spreadOptional(lessonsByDay, dayCount - learnDays);
 
   const days: PlanDay[] = [];
+  /** Extra tickets still to ask: yesterday's rest ids, after any rolled over. */
   let carryIds: number[] = [];
   /** Tickets met before today: the day exam's "older" pool (`olderQuestionIds`). */
   let metBefore = 0;
@@ -277,27 +290,33 @@ export function buildSchedule(input: ScheduleInput): PlanSchedule {
         (n, l) => n + l.questionIds.length,
         0,
       );
+      const steps = learnDaySteps({
+        lessons: dayLessons,
+        learnIndex: index,
+        newQuestions,
+        examQuestionCount,
+        carryCount: carryIds.length,
+        olderAvailable: metBefore,
+        optionalCount: optionalByDay[index].length,
+      });
+      // Only the day exam asks carried tickets; the rest roll over to tomorrow.
+      const asked = steps.find((s) => s.kind === 'test')?.examParts?.carry ?? 0;
       days.push({
         index,
         date,
         kind: 'learn',
         lessons: dayLessons,
-        carryIds,
+        carryIds: carryIds.slice(0, asked),
         optionalIds: optionalByDay[index],
         newQuestions,
-        steps: learnDaySteps({
-          lessons: dayLessons,
-          learnIndex: index,
-          newQuestions,
-          examQuestionCount,
-          carryCount: carryIds.length,
-          olderAvailable: metBefore,
-          optionalCount: optionalByDay[index].length,
-        }),
+        steps,
         minutes: 0,
       });
       metBefore += metIds(days[index]).length;
-      carryIds = depth.extrasInPlan ? dayLessons.flatMap((l) => l.restIds) : [];
+      carryIds = [
+        ...carryIds.slice(asked),
+        ...dayLessons.flatMap((l) => l.carryIds),
+      ];
     } else {
       const steps: PlanStep[] = [];
       if (carryIds.length > 0) {
@@ -377,5 +396,4 @@ export function daysForTargetMinutes(
     else lo = mid + 1;
   }
   return lo;
-  return null;
 }

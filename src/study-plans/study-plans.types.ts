@@ -35,10 +35,11 @@ export type PlanLesson = {
   /** Taught in the lesson, in order: each card's first tickets right after it. */
   questionIds: number[];
   /**
-   * A card's tickets beyond the taught ones. Full plans ask them in the next
-   * day's exam (`PlanDay.carryIds`); short plans put them in the optional
-   * `extra` rounds (`PlanDay.optionalIds`).
+   * A card's tickets beyond the taught ones that the next day's exam asks
+   * (`PlanDay.carryIds`): all of them in full plans, one per card in
+   * intensive plans, none in short plans.
    */
+  carryIds: number[];
   restIds: number[];
   /** Cards taught in this lesson, in order; empty for subjects with no cards. */
   cardIds: string[];
@@ -74,7 +75,11 @@ export type PlanDay = {
   date: string;
   kind: PlanDayKind;
   lessons: PlanLesson[];
-  /** Extra tickets of the previous learn day's lessons, asked in today's day exam. */
+  /**
+   * Extra tickets of earlier lessons asked today: in the day exam (at most
+   * `STUDY_PLAN_TEST_MAX_QUESTIONS`; the surplus rolls over to the next day)
+   * or, on a review day, all of them in the `mix` step.
+   */
   carryIds: number[];
   /**
    * Short plans: optional tickets for today's `extra` round, spread evenly
@@ -112,7 +117,7 @@ export type ScheduleInput = {
 /** Preview lessons go out without question / card ids. */
 export type PreviewLesson = Omit<
   PlanLesson,
-  'questionIds' | 'cardIds' | 'restIds'
+  'questionIds' | 'cardIds' | 'carryIds' | 'restIds'
 > & {
   questionCount: number;
   cardCount: number;

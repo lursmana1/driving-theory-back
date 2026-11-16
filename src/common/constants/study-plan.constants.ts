@@ -53,9 +53,11 @@ export const STUDY_PLAN_REVIEW_DAY_MOCKS = 2;
  * Plan depth by length. Full plans cover every ticket: a card's first 2
  * tickets in the lesson, its other tickets in the next day's exam, and signs
  * that have no ticket in the category still get a card. Short plans (like
- * 1-week / 2-week exam-prep schedules) teach the essentials: 1 ticket per
- * card, the other tickets stay optional (tickets page, trainer), and signs
- * not on the category's exam are left out.
+ * 2-3-week exam-prep schedules) teach the essentials: 1 ticket per card, the
+ * other tickets stay optional (tickets page, trainer), and signs not on the
+ * category's exam are left out. Intensive plans (under the recommended 14
+ * days) are short plans that also ask one more ticket per card in the next
+ * day's exam, so a short run still meets a second ticket of every sign.
  */
 export const STUDY_PLAN_SHORT_MAX_DAYS = 21;
 
@@ -63,8 +65,11 @@ export type PlanDepth = {
   mode: 'full' | 'short';
   /** Tickets taught right after their card. */
   ticketsPerCard: number;
-  /** A card's other tickets come back in the next day's exam (else optional). */
-  extrasInPlan: boolean;
+  /**
+   * A card's tickets beyond the taught ones that the next day's exam asks
+   * (`Infinity`: all of them); the rest stay optional.
+   */
+  carryPerCard: number;
   /** Cards with no ticket in the category are still taught. */
   teachingOnlyCards: boolean;
 };
@@ -72,14 +77,22 @@ export type PlanDepth = {
 export const STUDY_PLAN_DEPTH_FULL: PlanDepth = {
   mode: 'full',
   ticketsPerCard: 2,
-  extrasInPlan: true,
+  carryPerCard: Infinity,
   teachingOnlyCards: true,
 };
 
 export const STUDY_PLAN_DEPTH_SHORT: PlanDepth = {
   mode: 'short',
   ticketsPerCard: 1,
-  extrasInPlan: false,
+  carryPerCard: 0,
+  teachingOnlyCards: false,
+};
+
+/** Under `STUDY_PLAN_RECOMMENDED_MIN_DAYS`: short, plus a second ticket per card in the day exam. */
+export const STUDY_PLAN_DEPTH_INTENSIVE: PlanDepth = {
+  mode: 'short',
+  ticketsPerCard: 1,
+  carryPerCard: 1,
   teachingOnlyCards: false,
 };
 

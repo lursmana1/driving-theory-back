@@ -1,12 +1,20 @@
 # Study plan + learning cards: status and how to resume
 
-Last updated 2026-11-11. Backend side of the study plan. The full picture (product decisions, sign texts, owner
+Last updated 2026-11-16. Backend side of the study plan. The full picture (product decisions, sign texts, owner
 questions) is in the frontend repo: `C:/Users/lursm/Desktop/prava/plans/study-plan-handoff.md` (local, gitignored).
 
 ## Branch
 
 `feat/study-plan-preview`. Not merged, not deployed. Local DB only (prava-pg).
 Frontend counterpart: `prava` branch `feat/study-plan-mvp`.
+
+2026-11-16: `main` (question-bank fix: 23 questions moved to `questions_archived`, 343 restored) merged in as
+`7c4649e`. The plan reads live `questions` only and stores no question ids, so it followed the bank by itself;
+rule JSON lost the 22 archived ids and `db:seed-cards` + `db:link-sign-cards` were re-run locally
+(903 manual + 517 regex links, 0 dangling). Same day: review pass of the module; the schedule builder now
+rolls carried tickets a day exam cannot hold (cap 40, or no test) over to the next day instead of dropping
+them (spec in `schedule.builder.util.spec.ts`). Findings and leftovers in the frontend handoff, section
+"Review pass (2026-11-16)". Later that day: intensive plans (< 14 days) got their own depth (`STUDY_PLAN_DEPTH_INTENSIVE`: 1 ticket per card taught, 1 more per card carried into the next day's exam, rest optional); `PlanDepth.extrasInPlan` became `carryPerCard` and `PlanLesson` gained `carryIds`.
 
 ## What exists
 
@@ -17,7 +25,7 @@ Frontend counterpart: `prava` branch `feat/study-plan-mvp`.
 | Learning cards | `src/learning-cards/` entities: `learning_cards`, `learning_card_texts` (title, body, tutor, audio), `question_cards` (questionId, cardId, primary, source, confirmed) |
 | Cards in plan days | `plan-cards.service.ts` + `schedule/plan-subjects.util.ts`: card subjects become lesson units (a card + its tickets, never split; a ticket moves to its primary card's subject; tickets without a card at the subject end). Day session sends `cards` (with `lessonId`); step `cardCount`. Learn days split by estimated time (`splitLessonsByTime`) |
 | Schema scripts (idempotent) | `npm run db:ensure-study-plans`, `db:ensure-cards` |
-| Data scripts | `db:seed-cards` (262 sign/marking cards from the frontend sign JSON, ka/en/ru; rule cards from frontend `src/data/rules/<subjectId>.json` with their `manual` links, which replace any other link of those tickets), `db:link-sign-cards` (regex links ticket → sign) |
+| Data scripts | `db:seed-cards` (262 sign/marking cards from the frontend sign JSON, ka/en/ru; rule cards from frontend `src/data/rules/<subjectId>.json` with their `manual` links, which replace any other link of those tickets), `db:link-sign-cards` (regex links ticket → sign). Hand-made sign links from frontend `src/data/signs/manual-links.json` (tickets whose sign card covers a numbered range) are written by `db:seed-cards` as `manual` links (`manual-sign-links.util.ts`) |
 | Card audio | `audio:cards` (`scripts/sync-card-audio.ts`, record locally; ka Gemini TTS Kore Pro or `--flash`, en/ru Chirp3-HD; dry run by default) and `audio:cards:upload` (`scripts/upload-card-audio.ts`, S3 `audio/<lang>/card_<hash>.webm` + `learning_card_texts.tutor/audio`); shared helpers `scripts/lib/card-audio.ts` |
 
 Card texts come from the frontend repo `src/data/signs/tutor/{ka,en,ru}.json` (+ `ka-audio.json` for the shorter

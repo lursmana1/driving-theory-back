@@ -175,6 +175,7 @@ describe('splitLessonsByTime', () => {
     parts: 1,
     questionIds: Array.from({ length: questions }, (_, i) => i),
     cardIds: Array.from({ length: cards }, (_, i) => `c${i}`),
+    carryIds: [] as number[],
     restIds: [] as number[],
   });
 
@@ -236,9 +237,10 @@ describe('cards, extras and mocks', () => {
       .flatMap((d) => d.lessons)
       .filter((l) => l.subjectId === 3);
     expect(lessons.flatMap((l) => l.questionIds)).toHaveLength(12);
-    expect(lessons.flatMap((l) => l.restIds)).toHaveLength(12);
+    expect(lessons.flatMap((l) => l.carryIds)).toHaveLength(12);
+    expect(lessons.flatMap((l) => l.restIds)).toHaveLength(0);
     for (let i = 1; i < plan.days.length; i++) {
-      const prev = plan.days[i - 1].lessons.flatMap((l) => l.restIds);
+      const prev = plan.days[i - 1].lessons.flatMap((l) => l.carryIds);
       expect(plan.days[i].carryIds).toEqual(prev);
     }
     // every ticket is met once: taught or carried
@@ -263,6 +265,44 @@ describe('cards, extras and mocks', () => {
     });
   });
 
+  it('carried tickets over the test cap roll over; every rest id is asked once', () => {
+    // 6 cards x 30 tickets: 2 taught per card, 28 extras each -> 168 extras,
+    // far more than one day exam (40) can hold.
+    const bigCards: SubjectQuestions = {
+      subjectId: 3,
+      questionIds: Array.from({ length: 180 }, (_, i) => i + 1),
+      units: Array.from({ length: 6 }, (_, c) => ({
+        cardId: `sign-${c}`,
+        questionIds: Array.from({ length: 30 }, (_, n) => c * 30 + n + 1),
+      })),
+    };
+    const big = buildSchedule({
+      subjects: [bigCards, ...subjectsWithCards.slice(1)],
+      dayCount: 22,
+      startDay: '2026-11-04',
+      examQuestionCount: 30,
+    });
+    const toCarry = big.days.flatMap((d) =>
+      d.lessons.flatMap((l) => l.carryIds),
+    );
+    const asked = big.days.flatMap((d) => d.carryIds);
+    expect([...asked].sort((a, b) => a - b)).toEqual(
+      [...toCarry].sort((a, b) => a - b),
+    );
+    for (const d of big.days) {
+      const test = d.steps.find((s) => s.kind === 'test');
+      if (d.kind === 'learn') {
+        expect(d.carryIds.length).toBeLessThanOrEqual(40);
+        expect(test?.examParts?.carry ?? 0).toBe(d.carryIds.length);
+      } else if (d.carryIds.length) {
+        expect(d.steps[0]).toEqual({
+          kind: 'mix',
+          questionCount: d.carryIds.length,
+        });
+      }
+    }
+  });
+
   it('review days: last extras, mistakes review, two full mocks', () => {
     for (const d of plan.days.filter((x) => x.kind === 'review')) {
       expect(d.steps.map((s) => s.kind)).toEqual(
@@ -273,8 +313,24 @@ describe('cards, extras and mocks', () => {
     }
   });
 
-  it('short plans (≤ 21 days) teach 1 ticket per card, the rest optional', () => {
-    const short = buildWith(7);
+  it('intensive plans (< 14 days) carry one more ticket per card into the day exam', () => {
+    const intensive = buildWith(7);
+    expect(intensive.mode).toBe('short');
+    const lessons = intensive.days
+      .flatMap((d) => d.lessons)
+      .filter((l) => l.subjectId === 3);
+    expect(lessons.flatMap((l) => l.questionIds)).toHaveLength(6);
+    expect(lessons.flatMap((l) => l.carryIds)).toHaveLength(6);
+    expect(lessons.flatMap((l) => l.restIds)).toHaveLength(12);
+    expect(intensive.optionalQuestions).toBe(12);
+    // every carried ticket is asked once, in a day exam or the review day's mix
+    const asked = intensive.days.flatMap((d) => d.carryIds);
+    expect(new Set(asked).size).toBe(6);
+    expect(asked).toHaveLength(6);
+  });
+
+  it('short plans (14-21 days) teach 1 ticket per card, the rest optional', () => {
+    const short = buildWith(14);
     expect(short.mode).toBe('short');
     expect(plan.mode).toBe('full');
     const lessons = short.days
@@ -317,8 +373,17 @@ describe('cards, extras and mocks', () => {
       today: 15,
       older: 0,
     });
-    const big = dayExamParts(60, 40, 100, 30);
-    expect(big.carry + big.today + big.older).toBe(40);
+    // a big carry fills the exam but leaves room for today's and older ones
+    expect(dayExamParts(60, 40, 100, 30)).toEqual({
+      carry: 32,
+      today: 5,
+      older: 3,
+    });
+    expect(dayExamParts(60, 0, 0, 30)).toEqual({
+      carry: 40,
+      today: 0,
+      older: 0,
+    });
   });
 
   it('finds the shortest plan whose average day fits the target', () => {
@@ -339,6 +404,7 @@ describe('spreadOptional', () => {
     parts: 1,
     questionIds: [],
     cardIds: [],
+    carryIds: [],
     restIds,
   });
 
