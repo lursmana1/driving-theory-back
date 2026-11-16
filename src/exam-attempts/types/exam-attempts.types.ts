@@ -33,6 +33,10 @@ export interface AttemptSummary {
   completedAt: Date | null;
   passed: boolean | null;
   durationSeconds: number | null;
+  /** Category filter the attempt was started with (`[]` for legacy rows). */
+  categories: number[];
+  /** First valid id of `categories`; `null` when there is none. */
+  categoryId: number | null;
 }
 
 /** Full-history aggregates (not limited to the current page). */

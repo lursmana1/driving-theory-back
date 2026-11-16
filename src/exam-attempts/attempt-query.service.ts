@@ -11,6 +11,7 @@ import {
   DEFAULT_HISTORY_PAGE_SIZE,
 } from '../common/constants/exam.constants.js';
 import { resolveDisplayDuration } from './attempt-duration.util.js';
+import { pickPrimaryCategoryId } from '../common/utils/georgian-exam-rules.util.js';
 import { parsePgBoolean, parsePgInt } from '../common/utils/pg-row.util.js';
 import type {
   AttemptSummary,
@@ -251,6 +252,8 @@ export class AttemptQueryService {
       completedAt: attempt.completedAt,
       passed: attempt.passed,
       durationSeconds: resolveDisplayDuration(attempt),
+      categories: attempt.categories ?? [],
+      categoryId: pickPrimaryCategoryId(attempt.categories),
     };
   }
 }

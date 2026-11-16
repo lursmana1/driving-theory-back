@@ -111,8 +111,13 @@ export function assertSufficientQuestionPool(
   }
 }
 
-function pickPrimaryCategoryId(
-  categories: number[] | undefined,
+/**
+ * The category an attempt is filed under: the first valid id of its
+ * `categories` (exam rules, history label). `null` for legacy attempts
+ * started without a category filter.
+ */
+export function pickPrimaryCategoryId(
+  categories: readonly number[] | null | undefined,
 ): number | null {
   if (!categories?.length) return null;
   const valid = categories.filter(Number.isFinite);
