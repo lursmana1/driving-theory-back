@@ -1,6 +1,6 @@
 # Question bank fix: where we are and what is next
 
-Last updated: 2026-11-14. Branch: `feat/archive-outdated-questions`, committed and merged into local `main` (not pushed).
+Last updated: 2026-11-16. **Shipped to prod on 2026-11-16**: SQL 01–05 applied, backend `main` deployed, frontend images live.
 Background and the full rollout: `docs/question-bank-cleanup-2026-11.md`.
 
 Scope is **only** questions, categories, images and audio. No other tables or features in this branch
@@ -13,14 +13,14 @@ Scope is **only** questions, categories, images and audio. No other tables or fe
 | Backend code (past exam review, mid-exam answers from archive, live category counts) | done, tests pass, browser-tested locally |
 | SQL `01`, `02`, `03`, `04` in `scripts/sql/` | written, tested twice on a prod copy, applied to local DB |
 | 343 restored questions (ka/ru/en text, answers, explanations, `ai_tutor`, categories) | done, match starti.ge |
-| Images: 11 files in frontend `prava/public/ticket_media/new/` | added, **not committed** in the frontend repo |
+| Images: 11 files in frontend `prava/public/ticket_media/new/` | committed (`1a64320`) and live on prava.ge |
 | ru + en audio (686 mp3, no greeting) | **done** |
 | ka audio | **done** (343 / 343, generated 2026-11-12 to 2026-11-14) |
 | ka wav/mp3 → webm (like the other 1236) | **done**: 343 uploaded, DB repointed, 346 old wav/mp3 deleted. Local DB: ka webm 1579, ru/en mp3 1579 |
 | `05-restore-audio-2026-11.sql` | **generated** (1029 UPDATEs), re-run on the local DB: `UPDATE 0` × 1029, `still_missing` 0 |
 | `db:check-question-bank` | every line `[ok]`, including rows without audio 0 |
-| Commit / merge | backend committed on the branch and merged into local `main`; **not pushed** |
-| Prod | not started: needs the frontend images deployed first, then step 6 |
+| Commit / merge | merged into `main` and pushed (`88401dc`), deployed by Coolify |
+| Prod | **done 2026-11-16**: 02 archived 69 rows (1236/lang left), 03 fixed 352 extra answers + 166 correct answers, 04 inserted 1029 (343/lang), 05 `still_missing` 0. `/categories` on prod = AM 310, B 898, A 738, C 905, D 808, C1 915, D1 822, T 884, Tram 859, T/S 1236; questions 3/705/1553/1810 serve text, images and audio in ka/ru/en |
 
 Local DB category counts: AM 310, B 898, A 738, C 905, D 808, C1 915, D1 822, T 884, Tram 859, T/S 1236.
 Held back on purpose: questions 1793, 1794, 1795 (no image anywhere).
@@ -28,8 +28,8 @@ Held back on purpose: questions 1793, 1794, 1795 (no image anywhere).
 ## Next steps, in order
 
 Steps 1–4 were completed on 2026-11-14 and are kept below for reruns (e.g. future restored questions).
-**What is left: step 5 frontend part, then step 6.** Not verified by hand yet: listening to the restored
-questions in the browser (step 3, last paragraph).
+**Everything below is done.** Not verified by ear: listening to restored questions in the browser
+(audio files serve with HTTP 200, but nobody has confirmed the voice matches the text and has no greeting).
 
 All commands run from the backend folder in PowerShell. They write to the **local** DB and the real
 S3 bucket (`.env`); prod is only touched in step 7.
