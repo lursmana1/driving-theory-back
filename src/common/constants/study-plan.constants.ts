@@ -50,14 +50,14 @@ export const STUDY_PLAN_MOCK_EVERY_LEARN_DAYS = 3;
 export const STUDY_PLAN_REVIEW_DAY_MOCKS = 2;
 
 /**
- * Plan depth by length. Full plans cover every ticket: a card's first 2
- * tickets in the lesson, its other tickets in the next day's exam, and signs
- * that have no ticket in the category still get a card. Short plans (like
- * 2-3-week exam-prep schedules) teach the essentials: 1 ticket per card, the
- * other tickets stay optional (tickets page, trainer), and signs not on the
- * category's exam are left out. Intensive plans (under the recommended 14
- * days) are short plans that also ask one more ticket per card in the next
- * day's exam, so a short run still meets a second ticket of every sign.
+ * Plan depth by length. Full plans (over 21 days) cover every ticket: a
+ * card's first 2 tickets in the lesson, its other tickets in the next day's
+ * exam, and signs that have no ticket in the category still get a card.
+ * Short plans (3-21 days) teach 1 ticket per card in the lesson and ask one
+ * more per card in the next day's exam, so a short run still meets two
+ * tickets of every sign; the rest stay optional (the daily extra round), and
+ * signs not on the category's exam are left out. Research and numbers:
+ * prava `plans/reports/Study plan coverage options.md` (2026-11-17).
  */
 export const STUDY_PLAN_SHORT_MAX_DAYS = 21;
 
@@ -82,14 +82,6 @@ export const STUDY_PLAN_DEPTH_FULL: PlanDepth = {
 };
 
 export const STUDY_PLAN_DEPTH_SHORT: PlanDepth = {
-  mode: 'short',
-  ticketsPerCard: 1,
-  carryPerCard: 0,
-  teachingOnlyCards: false,
-};
-
-/** Under `STUDY_PLAN_RECOMMENDED_MIN_DAYS`: short, plus a second ticket per card in the day exam. */
-export const STUDY_PLAN_DEPTH_INTENSIVE: PlanDepth = {
   mode: 'short',
   ticketsPerCard: 1,
   carryPerCard: 1,

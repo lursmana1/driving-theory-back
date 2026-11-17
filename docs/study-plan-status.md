@@ -14,7 +14,7 @@ rule JSON lost the 22 archived ids and `db:seed-cards` + `db:link-sign-cards` we
 (903 manual + 517 regex links, 0 dangling). Same day: review pass of the module; the schedule builder now
 rolls carried tickets a day exam cannot hold (cap 40, or no test) over to the next day instead of dropping
 them (spec in `schedule.builder.util.spec.ts`). Findings and leftovers in the frontend handoff, section
-"Review pass (2026-11-16)". Later that day: intensive plans (< 14 days) got their own depth (`STUDY_PLAN_DEPTH_INTENSIVE`: 1 ticket per card taught, 1 more per card carried into the next day's exam, rest optional); `PlanDepth.extrasInPlan` became `carryPerCard` and `PlanLesson` gained `carryIds`.
+"Review pass (2026-11-16)". Later that day `PlanDepth.extrasInPlan` became `carryPerCard` and `PlanLesson` gained `carryIds`. 2026-11-18 (direction A, after the coverage research in the frontend `plans/reports/`): every short plan (3-21 days) teaches 1 ticket per card and carries 1 more into the next day's exam (`STUDY_PLAN_DEPTH_SHORT.carryPerCard = 1`); 14-day B requires 529 of 898 tickets, day exam ~23 questions.
 
 ## What exists
 

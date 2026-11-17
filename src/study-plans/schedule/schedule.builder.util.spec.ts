@@ -313,48 +313,41 @@ describe('cards, extras and mocks', () => {
     }
   });
 
-  it('intensive plans (< 14 days) carry one more ticket per card into the day exam', () => {
-    const intensive = buildWith(7);
-    expect(intensive.mode).toBe('short');
-    const lessons = intensive.days
-      .flatMap((d) => d.lessons)
-      .filter((l) => l.subjectId === 3);
-    expect(lessons.flatMap((l) => l.questionIds)).toHaveLength(6);
-    expect(lessons.flatMap((l) => l.carryIds)).toHaveLength(6);
-    expect(lessons.flatMap((l) => l.restIds)).toHaveLength(12);
-    expect(intensive.optionalQuestions).toBe(12);
-    // every carried ticket is asked once, in a day exam or the review day's mix
-    const asked = intensive.days.flatMap((d) => d.carryIds);
-    expect(new Set(asked).size).toBe(6);
-    expect(asked).toHaveLength(6);
+  it('depth: short up to 21 days, full after', () => {
+    expect(planDepthFor(3).mode).toBe('short');
+    expect(planDepthFor(21).mode).toBe('short');
+    expect(planDepthFor(21).carryPerCard).toBe(1);
+    expect(planDepthFor(22).mode).toBe('full');
+    expect(planDepthFor(22).carryPerCard).toBe(Infinity);
   });
 
-  it('short plans (14-21 days) teach 1 ticket per card, the rest optional', () => {
-    const short = buildWith(14);
-    expect(short.mode).toBe('short');
-    expect(plan.mode).toBe('full');
-    const lessons = short.days
-      .flatMap((d) => d.lessons)
-      .filter((l) => l.subjectId === 3);
-    expect(lessons.flatMap((l) => l.questionIds)).toHaveLength(6);
-    // the other tickets stay on the lesson but go to the optional rounds, not carry
-    expect(lessons.flatMap((l) => l.restIds)).toHaveLength(18);
-    expect(short.optionalQuestions).toBe(18);
-    expect(short.days.every((d) => d.carryIds.length === 0)).toBe(true);
-    // the optional `extra` step holds them, last in the day, not in the minutes
-    const extras = short.days.flatMap((d) =>
-      d.steps.filter((s) => s.kind === 'extra'),
-    );
-    expect(extras.reduce((n, s) => n + s.questionCount, 0)).toBe(18);
-    for (const d of short.days) {
-      const i = d.steps.findIndex((s) => s.kind === 'extra');
-      if (i !== -1) expect(i).toBe(d.steps.length - 1);
+  it('short plans (up to 21 days) teach 1 ticket per card and carry one more into the day exam', () => {
+    for (const dayCount of [7, 14, 21]) {
+      const short = buildWith(dayCount);
+      expect(short.mode).toBe('short');
+      const lessons = short.days
+        .flatMap((d) => d.lessons)
+        .filter((l) => l.subjectId === 3);
+      expect(lessons.flatMap((l) => l.questionIds)).toHaveLength(6);
+      expect(lessons.flatMap((l) => l.carryIds)).toHaveLength(6);
+      // the other tickets stay on the lesson but go to the optional rounds
+      expect(lessons.flatMap((l) => l.restIds)).toHaveLength(12);
+      expect(short.optionalQuestions).toBe(12);
+      // every carried ticket is asked once, in a day exam or the review day's mix
+      const asked = short.days.flatMap((d) => d.carryIds);
+      expect(new Set(asked).size).toBe(6);
+      expect(asked).toHaveLength(6);
+      // the optional `extra` step holds the rest, last in the day, not in the minutes
+      const extras = short.days.flatMap((d) =>
+        d.steps.filter((s) => s.kind === 'extra'),
+      );
+      expect(extras.reduce((n, s) => n + s.questionCount, 0)).toBe(12);
+      for (const d of short.days) {
+        const i = d.steps.findIndex((s) => s.kind === 'extra');
+        if (i !== -1) expect(i).toBe(d.steps.length - 1);
+      }
     }
-    expect(
-      plan.days.flatMap((d) => d.steps).some((s) => s.kind === 'extra'),
-    ).toBe(false);
-    expect(planDepthFor(21).mode).toBe('short');
-    expect(planDepthFor(22).mode).toBe('full');
+    expect(plan.mode).toBe('full');
   });
 
   it('day exam parts: carry first, a few older, today up to the target', () => {

@@ -6,13 +6,11 @@ import {
   STUDY_PLAN_MAX_DAYS,
   STUDY_PLAN_MIN_DAYS,
   STUDY_PLAN_MOCK_EVERY_LEARN_DAYS,
-  STUDY_PLAN_RECOMMENDED_MIN_DAYS,
   STUDY_PLAN_REVIEW_DAY_MAX_QUESTIONS,
   STUDY_PLAN_REVIEW_DAY_MOCKS,
   STUDY_PLAN_REVIEW_MAX_QUESTIONS,
   STUDY_PLAN_REVIEW_DAYS_BY_LENGTH,
   STUDY_PLAN_DEPTH_FULL,
-  STUDY_PLAN_DEPTH_INTENSIVE,
   STUDY_PLAN_DEPTH_SHORT,
   STUDY_PLAN_SHORT_MAX_DAYS,
   STUDY_PLAN_SECONDS_CARD,
@@ -42,14 +40,10 @@ import { metIds } from './day-session.util.js';
 import { addStudyDays } from './plan-length.util.js';
 
 /**
- * Full plans cover every ticket; short ones teach the essentials; intensive
- * ones (under the recommended length) add a second ticket per card to the
- * day exam.
+ * Full plans cover every ticket; short ones (up to 21 days) teach one ticket
+ * per card and ask a second one in the next day's exam.
  */
 export function planDepthFor(dayCount: number): PlanDepth {
-  if (dayCount < STUDY_PLAN_RECOMMENDED_MIN_DAYS) {
-    return STUDY_PLAN_DEPTH_INTENSIVE;
-  }
   return dayCount <= STUDY_PLAN_SHORT_MAX_DAYS
     ? STUDY_PLAN_DEPTH_SHORT
     : STUDY_PLAN_DEPTH_FULL;
@@ -273,8 +267,8 @@ export function buildSchedule(input: ScheduleInput): PlanSchedule {
   const learnDays = Math.min(plannedLearnDays, lessons.length);
 
   const lessonsByDay = splitLessonsByTime(lessons, learnDays);
-  // Short / intensive plans: a card's other tickets go to the optional rounds
-  // (full plans have none: every extra ticket is carried).
+  // Short plans: a card's other tickets go to the optional rounds (full plans
+  // have none: every extra ticket is carried).
   const optionalByDay = spreadOptional(lessonsByDay, dayCount - learnDays);
 
   const days: PlanDay[] = [];
