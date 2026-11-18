@@ -10,6 +10,10 @@ import { LeaderboardPeriod } from '../leaderboard/entities/leaderboard-period.en
 import { Question } from '../questions/entities/question.entity';
 import { User } from '../users/entities/user.entity';
 import { PasswordReset } from '../auth/entities/password-reset.entity';
+import { StudyPlan } from '../study-plans/entities/study-plan.entity';
+import { LearningCard } from '../learning-cards/entities/learning-card.entity';
+import { LearningCardText } from '../learning-cards/entities/learning-card-text.entity';
+import { QuestionCard } from '../learning-cards/entities/question-card.entity';
 
 export const TYPEORM_ENTITIES = [
   User,
@@ -19,6 +23,10 @@ export const TYPEORM_ENTITIES = [
   UserAnswer,
   PracticeAnswer,
   QuestionProgress,
+  StudyPlan,
+  LearningCard,
+  LearningCardText,
+  QuestionCard,
   LeaderboardPeriod,
   Question,
   Category,
