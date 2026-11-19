@@ -1,20 +1,31 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { parsePgInt } from '../common/utils/pg-row.util.js';
 import { StudyPlan } from './entities/study-plan.entity.js';
 import { parsePlanProgress } from './progress.util.js';
+import { planWriteQuery } from './saved-plans.sql.js';
 import { isStudyDay } from './schedule/plan-length.util.js';
 import type { SavePlanDto } from './dto/save-plan.dto.js';
 import type { SavedStudyPlanView } from './study-plans.types.js';
 
 type PlanFields = Pick<
   StudyPlan,
-  'categoryId' | 'dayCount' | 'startDay' | 'examDay' | 'progress' | 'updatedAt'
+  | 'categoryId'
+  | 'dayCount'
+  | 'startDay'
+  | 'examDay'
+  | 'progress'
+  | 'revision'
+  | 'updatedAt'
 >;
+
+type RevisionRow = { revision: number | string };
 
 function toView(row: PlanFields): SavedStudyPlanView {
   return {
@@ -25,6 +36,7 @@ function toView(row: PlanFields): SavedStudyPlanView {
     done: row.progress?.done ?? {},
     tests: row.progress?.tests ?? {},
     mistakes: row.progress?.mistakes ?? {},
+    revision: row.revision,
     updatedAt: row.updatedAt,
   };
 }
@@ -47,6 +59,12 @@ export class SavedPlansService {
     return toView(row);
   }
 
+  /**
+   * One atomic statement. With `baseRevision` the write happens only on the
+   * version the client read; otherwise 409 carrying the current plan (null
+   * when it was deleted), so the client can re-apply its changes on top
+   * without another GET. Without it: create or replace, last write wins.
+   */
   async saveMine(
     userId: number,
     dto: SavePlanDto,
@@ -61,22 +79,36 @@ export class SavedPlansService {
     const progress = parsePlanProgress(dto, dto.dayCount);
     if (!progress) throw new BadRequestException('Invalid plan progress');
 
-    const fields: PlanFields = {
+    const updatedAt = new Date();
+    const { sql, params } = planWriteQuery(
+      {
+        userId,
+        categoryId: dto.categoryId,
+        dayCount: dto.dayCount,
+        startDay: dto.startDay,
+        examDay,
+        progress,
+        updatedAt,
+      },
+      dto.baseRevision,
+    );
+    const rows = await this.plans.query<RevisionRow[]>(sql, params);
+    if (rows.length === 0) {
+      const current = await this.plans.findOne({ where: { userId } });
+      throw new ConflictException({
+        message: 'Study plan changed',
+        plan: current ? toView(current) : null,
+      });
+    }
+    return toView({
       categoryId: dto.categoryId,
       dayCount: dto.dayCount,
       startDay: dto.startDay,
       examDay,
       progress,
-      updatedAt: new Date(),
-    };
-    // createdAt is left out so an update keeps the first value (DB default
-    // on insert). One atomic statement: a second tab saving at once wins
-    // last. Every returned field is the one just written, so no re-read.
-    await this.plans.upsert(
-      { userId, ...fields },
-      { conflictPaths: ['userId'] },
-    );
-    return toView(fields);
+      revision: parsePgInt(rows[0].revision),
+      updatedAt,
+    });
   }
 
   async deleteMine(userId: number): Promise<void> {

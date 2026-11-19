@@ -195,6 +195,8 @@ export type SavedStudyPlanView = {
   done: StudyPlanProgress['done'];
   tests: StudyPlanProgress['tests'];
   mistakes: StudyPlanProgress['mistakes'];
+  /** Send back as `baseRevision` on the next save. */
+  revision: number;
   updatedAt: Date;
 };
 
