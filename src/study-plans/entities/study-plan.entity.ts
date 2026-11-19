@@ -29,6 +29,14 @@ export class StudyPlan {
   @Column({ type: 'jsonb', default: () => `'{"done":{},"tests":{}}'` })
   progress: StudyPlanProgress;
 
+  /**
+   * Bumped by every save. A client that sends the revision it read
+   * (`baseRevision`) only overwrites that version; otherwise 409.
+   * Existing rows start at 1, so 0 can mean "I saw no plan".
+   */
+  @Column({ type: 'int', default: 1 })
+  revision: number;
+
   @Column({ type: 'timestamptz', default: () => 'now()' })
   createdAt: Date;
 

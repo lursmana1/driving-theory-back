@@ -11,6 +11,7 @@ import {
   STUDY_DAY_PATTERN,
   STUDY_PLAN_MAX_DAYS,
   STUDY_PLAN_MIN_DAYS,
+  STUDY_PLAN_REVISION_MAX,
 } from '../../common/constants/study-plan.constants.js';
 
 /**
@@ -48,4 +49,15 @@ export class SavePlanDto {
   @IsOptional()
   @IsObject()
   mistakes?: Record<string, unknown>;
+
+  /**
+   * The `revision` the client read: 0 = it saw no plan (create only), n =
+   * overwrite only revision n, else 409 with the current plan. Absent:
+   * create or replace (clients before revisions).
+   */
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(STUDY_PLAN_REVISION_MAX)
+  baseRevision?: number;
 }

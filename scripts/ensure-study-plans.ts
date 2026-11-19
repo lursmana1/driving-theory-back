@@ -1,6 +1,6 @@
 /**
- * Creates study_plans (one saved study plan per signed-in user). Safe to
- * re-run.
+ * Creates study_plans (one saved study plan per signed-in user) and adds
+ * columns added later (`revision`, 2026-11). Safe to re-run.
  *
  *   npx ts-node -r tsconfig-paths/register scripts/ensure-study-plans.ts
  *   ... --print-sql   # no DB connection: print the SQL (Coolify psql terminal)
@@ -20,8 +20,11 @@ const SCHEMA_SQL = `
     progress jsonb NOT NULL DEFAULT '{"done":{},"tests":{}}',
     "createdAt" timestamptz NOT NULL DEFAULT now(),
     "updatedAt" timestamptz NOT NULL DEFAULT now(),
+    revision integer NOT NULL DEFAULT 1,
     CONSTRAINT pk_study_plans PRIMARY KEY ("userId")
-  )`;
+  );
+  ALTER TABLE study_plans
+    ADD COLUMN IF NOT EXISTS revision integer NOT NULL DEFAULT 1`;
 
 async function main() {
   if (process.argv.includes('--print-sql')) {

@@ -125,6 +125,9 @@ export const STUDY_PLAN_DAY_MISTAKES_MAX = 300;
 export const STUDY_PLAN_MISTAKES_TOTAL_MAX = 1000;
 export const STUDY_PLAN_QUESTION_ID_MAX = 1_000_000;
 
+/** `study_plans.revision` is a Postgres int. */
+export const STUDY_PLAN_REVISION_MAX = 2_147_483_647;
+
 /**
  * How long the per-category question id list (and the schedules built from
  * it) is cached in memory.

@@ -80,7 +80,10 @@ export class StudyPlansController {
     return this.saved.getMine(req.user.userId);
   }
 
-  /** Create or replace the caller's plan (choice + progress). */
+  /**
+   * Create or replace the caller's plan (choice + progress). With
+   * `baseRevision`: only over that revision, else 409 with the current plan.
+   */
   @Put('me')
   @UseGuards(JwtAuthGuard)
   @Header('Cache-Control', 'no-store')
